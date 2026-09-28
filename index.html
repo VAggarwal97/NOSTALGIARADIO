@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0B0B0C" />
+
+    <title>Nostalgia Radio — Old roads, local radios, songs that never left</title>
+    <meta
+      name="description"
+      content="A public, zero-login listening screen for curated nostalgic stations: travel, regional folk, festivals, workdays and street-corner memories."
+    />
+    <link rel="canonical" href="https://nostalgia-radio.example/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Nostalgia Radio" />
+    <meta
+      property="og:description"
+      content="Old roads. Local radios. Festival nights. Shops, workdays and songs that never really left."
+    />
+    <meta property="og:image" content="/og.svg" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml" />
+
+    <!--
+      Baseline CSP for the static app. `frame-ancestors` and `Referrer-Policy` /
+      `X-Content-Type-Options` / `Permissions-Policy` / HSTS are HTTP-only and are
+      delivered via public/_headers (see README). Keep this meta policy in sync with
+      public/_headers. frame-src stays 'none' until an explicit embed allowlist exists.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self'; media-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests;"
+    />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>Nostalgia Radio needs JavaScript to run its player. No account is ever required.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,94 @@
+/* ───────────────────────────────────────────────────────────────────────────
+   Nostalgia Radio — design tokens
+   Modern underneath, nostalgic on top.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg: #0b0b0c;
+  --bg-deep: #070708;
+  --surface: #121214;
+  --card: #1a1a1d;
+  --card-hover: #202024;
+  --raised: #26262b;
+
+  /* Ink */
+  --text: #f4ebdd;
+  --text-dim: #a9a39a;
+  --text-faint: #6f6a63;
+
+  /* Accents */
+  --accent: #b83a32;
+  --accent-soft: #d1584f;
+  --brass: #d4a85a;
+  --brass-dim: #a8813f;
+  --live: #5fbf7a;
+  --danger: #e0736a;
+
+  /* Lines */
+  --border: #333236;
+  --border-strong: #45444a;
+
+  /* Type */
+  --font-display: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman',
+    serif;
+  --font-sans: 'Helvetica Neue', Helvetica, 'Segoe UI', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Menlo, Consolas, monospace;
+
+  --size-brand: clamp(1.4rem, 1rem + 1.4vw, 2.1rem);
+  --size-hero: clamp(2.1rem, 1.2rem + 3.6vw, 4rem);
+  --size-station: clamp(1.35rem, 1rem + 1.4vw, 2rem);
+  --size-body: 0.875rem;
+  --size-small: 0.8125rem;
+  --size-label: 0.6875rem;
+  --size-micro: 0.625rem;
+
+  /* Space */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+
+  /* Elevation */
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 12px 30px rgba(0, 0, 0, 0.45);
+  --shadow-lift: 0 2px 0 rgba(255, 255, 255, 0.05) inset, 0 22px 46px rgba(0, 0, 0, 0.55);
+  --glow-live: 0 0 18px rgba(184, 58, 50, 0.55);
+
+  /* Motion */
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --dur-fast: 140ms;
+  --dur: 220ms;
+  --dur-slow: 420ms;
+
+  /* Layout */
+  --header-h: 64px;
+  --player-h: 76px;
+}
+
+/* Warm variant — P2 theme toggle. Same contrast intent, aged-paper temperature. */
+:root[data-theme='warm'] {
+  --bg: #14100d;
+  --bg-deep: #0e0b09;
+  --surface: #1b1613;
+  --card: #221b17;
+  --card-hover: #2a221d;
+  --raised: #302620;
+  --text: #f7eeda;
+  --text-dim: #b7a98f;
+  --text-faint: #7d7059;
+  --border: #3a3129;
+  --border-strong: #4d4136;
+  --accent: #c2453a;
+  --brass: #e0b467;
+}

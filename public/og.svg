@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="Nostalgia Radio">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B0B0C" />
+      <stop offset="1" stop-color="#171316" />
+    </linearGradient>
+    <linearGradient id="brass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E8C883" />
+      <stop offset="1" stop-color="#A8813F" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)" />
+  <g stroke="#B83A32" stroke-width="3" fill="none" opacity="0.75">
+    <circle cx="250" cy="315" r="70" />
+    <circle cx="250" cy="315" r="120" opacity="0.5" />
+    <circle cx="250" cy="315" r="170" opacity="0.28" />
+  </g>
+  <rect x="470" y="215" width="560" height="200" rx="24" fill="#1A1A1D" stroke="#333236" stroke-width="2" />
+  <rect x="510" y="255" width="300" height="120" rx="12" fill="#0B0B0C" stroke="#333236" />
+  <rect x="540" y="290" width="40" height="50" rx="8" fill="url(#brass)" />
+  <rect x="600" y="290" width="40" height="50" rx="8" fill="url(#brass)" />
+  <circle cx="880" cy="315" r="46" fill="#121214" stroke="url(#brass)" stroke-width="6" />
+  <line x1="880" y1="315" x2="880" y2="279" stroke="#F4EBDD" stroke-width="5" stroke-linecap="round" />
+  <text x="700" y="150" text-anchor="middle" fill="#F4EBDD" font-family="Georgia, serif" font-size="72" letter-spacing="6">NOSTALGIA RADIO</text>
+  <text x="700" y="490" text-anchor="middle" fill="#A9A39A" font-family="monospace" font-size="26" letter-spacing="4">OLD ROADS · LOCAL RADIOS · SONGS THAT NEVER LEFT</text>
+</svg>
