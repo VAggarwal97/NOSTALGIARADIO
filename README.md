@@ -164,6 +164,7 @@ faking playback for unavailable sources. No scraping, proxying or re-hosting.
 ## Security
 
 - Baseline CSP in `index.html` (meta) and `public/_headers` (HTTP): `default-src 'self'`,
+  `media-src 'self' https:` (same-origin sample audio today, authorised HTTPS streams later),
   `frame-src 'none'`, `object-src 'none'`, `frame-ancestors 'none'`, `nosniff`,
   `Referrer-Policy: strict-origin-when-cross-origin`, Permissions-Policy with camera/mic/
   location/payment disabled. HSTS is commented out until the domain is confirmed HTTPS-only.

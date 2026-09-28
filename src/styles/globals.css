@@ -417,7 +417,8 @@ img {
 
 .hero-content {
   width: 100%;
-  padding-block: clamp(7rem, 16vh, 10rem) clamp(10rem, 22vh, 14rem);
+  /* Bottom padding clears the keyboard hints and the floating pill. */
+  padding-block: clamp(7rem, 16vh, 10rem) clamp(13rem, 27vh, 17rem);
 }
 
 .hero-fade {
@@ -576,11 +577,11 @@ img {
   color: var(--accent);
 }
 
-/* Bottom keyboard hints — subtle, low opacity, scrolls away with the hero. */
+/* Bottom keyboard hints — subtle, low opacity, sits above the floating pill. */
 .hero-hints {
   position: absolute;
   left: 50%;
-  bottom: clamp(8.75rem, 14vh, 11rem);
+  bottom: clamp(11.5rem, 19vh, 13.5rem);
   transform: translateX(-50%);
   display: flex;
   flex-wrap: wrap;
@@ -1237,6 +1238,11 @@ img {
 @media (max-width: 1023px) {
   .hero-hints {
     display: none;
+  }
+
+  /* Hints are gone on small screens — only the pill needs clearing. */
+  .hero-content {
+    padding-block: clamp(7rem, 16vh, 10rem) clamp(10rem, 22vh, 14rem);
   }
 
   .topnav-inner {
