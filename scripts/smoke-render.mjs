@@ -26,7 +26,12 @@ const documentStub = {
 
 const windowStub = {
   localStorage: localStorageStub,
-  location: { href: 'http://localhost:5173/?station=musafir', origin: 'http://localhost:5173', pathname: '/' },
+  location: {
+    href: 'http://localhost:5173/?station=musafir',
+    search: '?station=musafir',
+    origin: 'http://localhost:5173',
+    pathname: '/',
+  },
   history: { replaceState: () => {} },
   addEventListener: () => {},
   removeEventListener: () => {},
@@ -63,15 +68,20 @@ try {
     ['renders the brand', html.includes('Nostalgia Radio')],
     ['renders the hero station', html.includes('Musafir')],
     ['renders hero artwork', html.includes('/art/highway.svg')],
-    ['renders category nav', html.includes('Travel') && html.includes('Folk')],
-    ['renders featured rail', html.includes('Featured picks')],
-    ['renders an editorial moment', html.includes('Tonight’s rotation') || html.includes('Tonight')],
+    ['renders category nav in the header', html.includes('Travel') && html.includes('Folk')],
+    ['renders the live badge', html.includes('live-badge')],
+    ['renders the two-line hero title', html.includes('line-2') || html.includes('hero-title')],
+    ['renders keyboard hints', html.includes('Play / Pause') && html.includes('Mute')],
     ['renders the floating player', html.includes('Player controls')],
-    ['renders the footer', html.includes('No accounts, no tracking')],
+    ['no featured rail', !html.includes('Featured picks')],
+    ['no station cards', !html.includes('class="card"')],
+    ['no editorial sections', !html.includes('editorial')],
+    ['no site footer', !html.includes('site-footer')],
     ['no sidebar markup', !html.includes('sidebar')],
+    ['no login or account UI', !/sign ?up|register|avatar|profile/i.test(html)],
+    ['no listener counts', !/\d+\s*(listening|listeners)/i.test(html)],
     ['no undefined leakage', !html.includes('undefined</')],
     ['no NaN leakage', !html.includes('NaN')],
-    ['cards rendered', (html.match(/class="card"/g) ?? []).length > 0],
   ];
 
   let failed = 0;

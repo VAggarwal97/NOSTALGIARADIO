@@ -1,22 +1,165 @@
-import type { Station } from '../types/station';
+import type { ExternalLink, NowPlaying, Station } from '../types/station';
 
 /**
  * Seed inventory.
  *
- * Named stations come from the supplied source inventory. Descriptions are short
- * editorial copy written for this seed; replace them verbatim when the full
- * inventory is imported. Source pages use `https://example.org/...` placeholders
- * until the real, authorised URLs are pasted in — CI treats unreachable URLs as
- * warnings, never as a reason to fake playback.
+ * The first six entries are the category flagships — the identity the hero
+ * switches to when a station chip is pressed. Named stations come from the
+ * supplied source inventory; descriptions are short editorial copy written for
+ * this seed. Source pages use `https://example.org/...` placeholders until the
+ * real, authorised URLs are pasted in — CI treats unreachable URLs as warnings,
+ * never as a reason to fake playback.
  *
  * Artwork is locally generated SVG scene art (see scripts/generate-artwork.mjs);
  * `demo: true` stations play locally generated sample audio so every player
- * control is exercisable without licensing third-party streams.
- *
- * No listener counts, ratings or progress numbers are stored anywhere in this
- * file: the product must never display invented data.
+ * control is exercisable without licensing third-party streams. Their
+ * `nowPlaying` metadata describes those local files — no song titles are ever
+ * invented.
  */
+const demoTrack = (letter: 'A' | 'B' | 'C'): NowPlaying => ({
+  title: `Demo Tape ${letter}`,
+  subtitle: 'Synthesised locally · not a licensed track',
+});
+
+/** Real service search links for a station name — replace with profiles when available. */
+const services = (name: string): ExternalLink[] => [
+  { label: 'Spotify', url: `https://open.spotify.com/search/${encodeURIComponent(name)}` },
+  { label: 'YouTube Music', url: `https://music.youtube.com/search?q=${encodeURIComponent(name)}` },
+];
 const raw: Station[] = [
+  // ── Flagships — one identity per category; selecting a chip loads these ────
+  {
+    id: 'nostalgia-radio',
+    name: 'Nostalgia Radio',
+    category: 'mix',
+    flagship: true,
+    titleLines: ['Nostalgia', 'Radio'],
+    accent: '#f05a45',
+    description: 'Old roads, local radios and the songs that never really left.',
+    artwork: '/art/neighborhood.svg',
+    url: 'https://example.org/nostalgia-radio',
+    audioUrl: '/audio/demo-a.wav',
+    action: 'play',
+    sourceType: 'direct-audio',
+    nowPlaying: demoTrack('A'),
+    externalLinks: services('Nostalgia Radio'),
+    tags: ['nostalgia', 'classic', 'archive', 'memories'],
+    language: ['Hindi'],
+    region: 'Pan India',
+    era: '1960s–2000s',
+    featured: true,
+    demo: true,
+  },
+  {
+    id: 'truck-wala-radio',
+    name: 'Truck Wala Radio',
+    category: 'transit',
+    flagship: true,
+    titleLines: ['Truck Wala', 'Radio'],
+    accent: '#e2543a',
+    description: 'Highway bangers, desi beats and trucker tales from India’s long roads.',
+    artwork: '/art/highway.svg',
+    url: 'https://example.org/truck-wala-radio',
+    audioUrl: '/audio/demo-a.wav',
+    action: 'play',
+    sourceType: 'direct-audio',
+    nowPlaying: demoTrack('A'),
+    externalLinks: services('Truck Wala Radio'),
+    tags: ['road', 'highway', 'people', 'memories'],
+    language: ['Hindi'],
+    region: 'Highway',
+    era: '1990s–2000s',
+    featured: true,
+    demo: true,
+  },
+  {
+    id: 'desi-world-radio',
+    name: 'Desi World Radio',
+    category: 'beyond-india',
+    flagship: true,
+    titleLines: ['Desi World', 'Radio'],
+    accent: '#d89a54',
+    description: 'Indian melodies carried across borders — diaspora, disco and long-distance longing.',
+    artwork: '/art/cafe.svg',
+    url: 'https://example.org/desi-world-radio',
+    audioUrl: '/audio/demo-c.wav',
+    action: 'play',
+    sourceType: 'direct-audio',
+    nowPlaying: demoTrack('C'),
+    externalLinks: services('Desi World Radio'),
+    tags: ['world', 'diaspora', 'oldies'],
+    language: ['Hindi', 'English'],
+    region: 'International',
+    era: '1970s–2000s',
+    featured: true,
+    demo: true,
+  },
+  {
+    id: 'rain-window-radio',
+    name: 'Rain Window Radio',
+    category: 'ambient',
+    flagship: true,
+    titleLines: ['Rain Window', 'Radio'],
+    accent: '#e7c88b',
+    description: 'Slow nostalgic evening music for balconies, kettles and unhurried rain.',
+    artwork: '/art/rainy-street.svg',
+    url: 'https://example.org/rain-window-radio',
+    audioUrl: '/audio/demo-b.wav',
+    action: 'play',
+    sourceType: 'direct-audio',
+    nowPlaying: demoTrack('B'),
+    externalLinks: services('Rain Window Radio'),
+    tags: ['rain', 'evening', 'slow'],
+    language: ['Hindi'],
+    region: 'Pan India',
+    era: '1980s–2000s',
+    featured: true,
+    demo: true,
+  },
+  {
+    id: 'kaam-wala-radio',
+    name: 'Kaam Wala Radio',
+    category: 'work',
+    flagship: true,
+    titleLines: ['Kaam Wala', 'Radio'],
+    accent: '#d89a54',
+    description: 'Background radio for workshops, desks, delivery runs and the ten-hour shift.',
+    artwork: '/art/workshop.svg',
+    url: 'https://example.org/kaam-wala-radio',
+    audioUrl: '/audio/demo-c.wav',
+    action: 'play',
+    sourceType: 'direct-audio',
+    nowPlaying: demoTrack('C'),
+    externalLinks: services('Kaam Wala Radio'),
+    tags: ['workshop', 'focus', 'shift'],
+    language: ['Hindi'],
+    region: 'North India',
+    era: '1990s–2000s',
+    featured: true,
+    demo: true,
+  },
+  {
+    id: 'bazaar-radio',
+    name: 'Bazaar Radio',
+    category: 'shops',
+    flagship: true,
+    titleLines: ['Bazaar', 'Radio'],
+    accent: '#f05a45',
+    description: 'Shopfront speakers, bargaining energy and the market’s own playlist.',
+    artwork: '/art/market.svg',
+    url: 'https://example.org/bazaar-radio',
+    audioUrl: '/audio/demo-a.wav',
+    action: 'play',
+    sourceType: 'direct-audio',
+    nowPlaying: demoTrack('A'),
+    externalLinks: services('Bazaar Radio'),
+    tags: ['bazaar', 'market', 'street'],
+    language: ['Hindi'],
+    region: 'Pan India',
+    era: '1980s–2000s',
+    featured: true,
+    demo: true,
+  },
   // ── Travel ─────────────────────────────────────────────────────────────────
   {
     id: 'musafir',
@@ -28,6 +171,7 @@ const raw: Station[] = [
     audioUrl: '/audio/demo-a.wav',
     action: 'play',
     sourceType: 'direct-audio',
+    nowPlaying: demoTrack('A'),
     tags: ['road', 'truck', 'highway'],
     language: ['Hindi', 'Punjabi'],
     region: 'North India',
@@ -103,6 +247,7 @@ const raw: Station[] = [
     audioUrl: '/audio/demo-c.wav',
     action: 'play',
     sourceType: 'direct-audio',
+    nowPlaying: demoTrack('C'),
     tags: ['world', 'oldies'],
     language: ['English'],
     region: 'International',
@@ -156,12 +301,17 @@ const raw: Station[] = [
     id: 'rajasthani-folk',
     name: 'Rajasthani Folk',
     category: 'regional-folk',
+    flagship: true,
+    titleLines: ['Rajasthani', 'Folk'],
+    accent: '#c4633f',
     description: 'Desert strings, langa vocals and camels-walk-slowly rhythms.',
     artwork: '/art/desert.svg',
     url: 'https://example.org/rajasthani-folk',
     audioUrl: '/audio/demo-b.wav',
     action: 'play',
     sourceType: 'direct-audio',
+    nowPlaying: demoTrack('B'),
+    externalLinks: services('Rajasthani Folk'),
     tags: ['folk', 'desert'],
     language: ['Marwari', 'Hindi'],
     region: 'Rajasthan',
@@ -237,6 +387,7 @@ const raw: Station[] = [
     audioUrl: '/audio/demo-a.wav',
     action: 'play',
     sourceType: 'direct-audio',
+    nowPlaying: demoTrack('A'),
     tags: ['cassette', '90s', 'soft'],
     language: ['Hindi'],
     region: 'Pan India',
@@ -296,6 +447,7 @@ const raw: Station[] = [
     audioUrl: '/audio/demo-b.wav',
     action: 'play',
     sourceType: 'direct-audio',
+    nowPlaying: demoTrack('B'),
     tags: ['chhath', 'aarti'],
     language: ['Bhojpuri', 'Hindi'],
     region: 'Bihar',
@@ -321,15 +473,23 @@ const raw: Station[] = [
     id: 'holi-gulal-fm',
     name: 'Holi Gulal FM',
     category: 'festival',
+    flagship: true,
+    titleLines: ['Holi Gulal', 'FM'],
+    accent: '#e8663a',
     description: 'Drum-lines and drenching-day classics from the corner of the colony.',
     artwork: '/art/festival.svg',
     url: 'https://example.org/holi-gulal-fm',
-    action: 'check',
-    sourceType: 'external-site',
+    audioUrl: '/audio/demo-b.wav',
+    action: 'play',
+    sourceType: 'direct-audio',
+    nowPlaying: demoTrack('B'),
+    externalLinks: services('Holi Gulal FM'),
     tags: ['holi', 'dance'],
     language: ['Hindi'],
     region: 'North India',
     era: '1980s–2000s',
+    featured: true,
+    demo: true,
   },
   {
     id: 'morning-aarti',
@@ -357,6 +517,7 @@ const raw: Station[] = [
     audioUrl: '/audio/demo-c.wav',
     action: 'play',
     sourceType: 'direct-audio',
+    nowPlaying: demoTrack('C'),
     tags: ['construction', 'labour'],
     language: ['Hindi'],
     region: 'North India',

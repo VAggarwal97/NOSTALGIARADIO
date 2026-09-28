@@ -2,13 +2,11 @@ import type { Station } from '../types/station';
 import { CATEGORY_MAP } from '../data/categories';
 import { classifyUrl } from '../lib/urlSafety';
 import { decideSource, labelForDecision } from '../lib/sourcePolicy';
-import { CloseIcon, ExternalIcon, HeartIcon, ShareIcon } from './Icons';
+import { CloseIcon, ExternalIcon, ShareIcon } from './Icons';
 
 interface StationInfoModalProps {
   station: Station | null;
-  isFavorite: boolean;
   onClose: () => void;
-  onToggleFavorite: (station: Station) => void;
   onShare: (station: Station) => void;
   onOpenSource: (station: Station) => void;
 }
@@ -16,9 +14,7 @@ interface StationInfoModalProps {
 /** Station details as a modal (bottom sheet on mobile) — never a page route. */
 export function StationInfoModal({
   station,
-  isFavorite,
   onClose,
-  onToggleFavorite,
   onShare,
   onOpenSource,
 }: StationInfoModalProps) {
@@ -94,23 +90,14 @@ export function StationInfoModal({
               </a>
             ))}
 
-            <button
-              type="button"
-              className="link-chip"
-              aria-pressed={isFavorite}
-              onClick={() => onToggleFavorite(station)}
-            >
-              <HeartIcon size={14} filled={isFavorite} /> {isFavorite ? 'Saved' : 'Save'}
-            </button>
-
             <button type="button" className="link-chip" onClick={() => onShare(station)}>
               <ShareIcon size={14} /> Share
             </button>
           </div>
 
           <p className="footer-note" style={{ marginTop: 'var(--space-5)' }}>
-            External links open in a new tab without opener access. Nothing here tracks you, and
-            saved stations stay on this device.
+            External links open in a new tab without opener access. Nothing here tracks you, and no
+            account or database exists — everything runs in your browser.
           </p>
         </div>
       </div>

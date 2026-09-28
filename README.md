@@ -1,26 +1,54 @@
 # Nostalgia Radio
 
-A cinematic, single-page public listening experience with an old Indian radio/cassette soul.
-Vite + React + TypeScript · one continuous scroll · no login · no database · static CDN deploy.
+A **single-screen cinematic radio experience** with an old Indian radio/cassette soul.
+Vite + React + TypeScript · one page · no login · no database · static CDN deploy.
 
-The product/UI/UX/security specification this build implements lives in the project
-documentation it was generated from.
+> **Design direction:** *"You opened a radio station, not a website containing radio
+> stations."* The artwork is the page, the station identity is the hero, the player is the
+> primary interaction, and everything else stays out of the way.
 
-## The page (one scroll, no templates)
+## The screen (one page, no templates)
 
 ```
-sticky top nav (brand · category chips · search / surprise / saved)
-cinematic hero   → artwork-led, 40–96px editorial serif title, ONE dominant PLAY/ENTER CTA
-floating player  → desktop: glass bar fixed at the bottom · mobile: compact bar → bottom sheet
-FEATURED PICKS   → editorial rail of stations
-editorial moment → one sentence, one atmospheric scene
-<category> rail  → in-place crossfade when a category chip is pressed (never a new page)
-editorial moment → specific to the active category
-compact footer   → external links only
+┌──────────────────────────────────────────────────────────────────────┐
+│ NOSTALGIA RADIO   [MIX] TRAVEL BEYOND FOLK AMBIENT FESTIVALS WORK    │
+│ NO LOGIN · NO DATABASE · JUST STATIONS            SHOP  ♪ 𝘈 ▸  ?  ⌕ │
+│                                                                      │
+│  ● ON AIR                                                            │
+│  TRAVEL · ROAD · PEOPLE · MEMORIES                                   │
+│  Truck Wala                                                          │
+│  Radio                          ← full-bleed cinematic artwork      │
+│  Highway bangers, desi beats and trucker tales…                      │
+│  ⌖ Highway · Hindi · 1990s–2000s          [ ▶ PLAY ]  ⋯             │
+│                                                                      │
+│        SPACE Play/Pause   ← → Seek   M Mute   S Share   ? Help       │
+│                                                                      │
+│      ╭──────────────── glass pill player ─────────────────╮          │
+│      │ (ART)  Demo Tape A · Playing · Truck Wala Radio     │          │
+│      │        ◀  ❚❚  ▶   🔊  ☰  ⌄                       │          │
+│      │        ──────────●──────────            00:12/03:00 │          │
+│      ╰─────────────────────────────────────────────────────╯          │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
-Deliberately absent: sidebars, logins, avatars, dashboards, notification/admin/analytics
-widgets, filter panels, dense tables, fake listener numbers, decorative controls, autoplay.
+- **Header** is the only navigation: brand → station selectors → Spotify / YouTube Music
+  (shown only when the station configures them) · help · search. On mobile the selector row
+  becomes a full-screen station list — never a sidebar.
+- **Categories are station selectors, not pages.** Pressing TRAVEL swaps the hero to that
+  category's flagship station — artwork, two-line title, description, metadata, accent and
+  track all crossfade. The layout never changes, nothing navigates, nothing reloads.
+- **Hero** ≈ 100vh: cinematic artwork, dark multi-layer scrim, grain, a non-numeric live badge,
+  editorial serif title (line 2 in the station accent), short description, `⌖ region · language ·
+  era`, one dominant CTA, subtle keyboard hints.
+- **Floating glass player**: pill (720px max, backdrop blur, soft shadow) with circular
+  artwork, track/station, transport, volume, a real queue of the current station set, and a
+  progress line that renders **only** when the audio reports a real duration. It can minimise
+  into a small `◉ Now Playing` chip. Mobile: compact rounded bar → expands in place.
+- **Overlays only**: search, station details, keyboard help, toasts.
+
+Deliberately absent: rails/grids of cards, category sections, footer blocks, sidebars,
+logins, avatars, wishlists, dashboards, notifications, admin/analytics widgets, filter
+panels, dense tables, fake listener counts or progress, decorative controls, autoplay.
 
 ## Run
 
@@ -37,11 +65,11 @@ npm run dev          # http://localhost:5173
 | --- | --- |
 | `npm run dev` | Dev server |
 | `npm run art` | Regenerate `public/art/*.svg` (12 original procedural scenes) |
-| `npm run validate:content` | Content gate: unique IDs, valid categories, artwork exists, safe URL protocols, required fields, no executable markup |
+| `npm run validate:content` | Content gate: unique IDs, valid categories, flagship per category (exists · marked · two-line title · accent), artwork on disk, safe URL protocols, required fields, no executable markup |
 | `npm run lint:security` | Same gate in `--strict` mode (warnings fail) |
 | `npm test` | Vitest: URL safety, source policy, catalog/search, spec invariants |
 | `npm run typecheck` | `tsc -b` |
-| `npm run smoke` | Renders the real app to HTML through Vite SSR (runtime sanity) |
+| `npm run smoke` | Renders the real app to HTML through Vite SSR and asserts the single-screen structure |
 | `npm run build` | Validate → typecheck → Vite production build into `dist/` |
 | `npm run ci` | The full gate: validate → test → typecheck → smoke → build |
 | `npm run preview` | Serve the production build |
@@ -53,21 +81,17 @@ Tokens live in `src/styles/tokens.css`; layout/components in `src/styles/globals
 
 | Role | Value |
 | --- | --- |
-| Background | `#0B0807` |
-| Surface | `#15100D` |
-| Elevated | `#1D1511` |
-| Ivory | `#F4EBDD` |
-| Muted cream | `#CDBDA8` |
-| Amber (primary accent) | `#D7A451` |
-| Terracotta | `#A94A38` |
-| Deep wine | `#4B1717` |
-| Border | `#3A2A20` |
-| Live | `#62D49B` |
+| Base | `#080807` · `#0D0C0B` · `#12100E` |
+| Warm neutral / ink | `#F4EBDD` (muted: `rgba(244,235,221,.65)`) |
+| Accent (primary) | `#F05A45` — overridden per station, e.g. Travel `#E2543A`, Folk `#C4633F`, Ambient `#E7C88B`, Festivals `#E8663A` |
+| Secondary warm | `#D89A54` |
+| Border / glass edge | `rgba(244,235,221,.12)` · `rgba(255,255,255,.08)` |
 
 Type is self-hosted (`@fontsource`, latin subset only — no third-party requests):
-Cormorant Garamond (display/brand/hero), Inter (UI/body), IBM Plex Mono (metadata).
+Cormorant Garamond (brand/hero display), Inter (UI/body), IBM Plex Mono (metadata).
+Hero title `clamp(48px → 120px)`, second line `44 → 110px`, eyebrow 13px at `.36em` tracking.
 
-Motion: UI 180–300 ms, hero crossfade 500–900 ms, cards 150–220 ms; everything collapses
+Motion: UI 180–300 ms · hero crossfade 780 ms · title rise+fade 520 ms; everything collapses
 under `prefers-reduced-motion`.
 
 Breakpoints: ≥1440 · 1024–1439 · 768–1023 · ≤767 (compact fixed player + bottom sheets).
@@ -82,30 +106,32 @@ public/
   audio/                  locally generated sample tracks (no third-party audio)
   manifest.webmanifest    installable app shell
 src/
-  app/App.tsx             single-page shell + state orchestration
-  components/             TopNav, CategoryNav, CinematicHero, FloatingPlayer, StationRail,
-                          StationCard, EditorialMoment, SiteFooter, SearchOverlay,
-                          StationInfoModal, Toast, Icons
-  data/categories.ts      8 categories: MIX · TRAVEL · BEYOND · FOLK · AMBIENT ·
-                          FESTIVALS · WORK · SHOP
-  data/editorial.ts       editorial quotes per category
+  app/App.tsx             single-screen shell: hero + player + overlays
+  components/             TopNav (with CategoryNav), CinematicHero, FloatingPlayer,
+                          SearchOverlay, StationInfoModal, HelpOverlay, Toast, Icons
+  data/categories.ts      8 station selectors: MIX · TRAVEL · BEYOND · FOLK · AMBIENT ·
+                          FESTIVALS · WORK · SHOP — each with `flagship` + `accent`
   data/stations.ts        station inventory (replace with the full source inventory)
-  hooks/                  useAudioPlayer, useFavorites, useKeyboardShortcuts
-  lib/                    catalog, sourcePolicy, urlSafety, share, storage
+  hooks/                  useAudioPlayer, useKeyboardShortcuts
+  lib/                    catalog, hero (title/eyebrow/accent), sourcePolicy, urlSafety, share
   styles/                 tokens.css (palette/type) + globals.css (layout & components)
   types/station.ts        the data model
 ```
 
 ## Content: importing the full inventory
 
-`src/data/stations.ts` is the only file that needs to change. Schema:
+`src/data/stations.ts` (and the `flagship` pointer in `data/categories.ts`) is all that needs
+to change. Schema:
 
 ```ts
 {
-  id: 'musafir',              // unique, lowercase kebab-case — required even when names repeat
-  name: 'Musafir',
-  category: 'transit',        // home category, never 'mix'
+  id: 'truck-wala-radio',     // unique, lowercase kebab-case — required even when names repeat
+  name: 'Truck Wala Radio',
+  category: 'transit',        // home category; only the MIX flagship may use 'mix'
   secondaryCategories?: ['ambient'],
+  flagship: true,             // exactly one per category — the hero identity for its chip
+  titleLines: ['Truck Wala', 'Radio'],   // line 1 ivory, line 2 in the accent colour
+  accent: '#e2543a',          // hero/CTA/active-chip tint for this station
   description: '…',
   artwork: '/art/highway.svg', // local /art/*.svg — validated to exist on disk
   url: 'https://…',           // station's own page (validated: http/https only)
@@ -114,19 +140,22 @@ src/
   sourceType: 'direct-audio' | 'external-site' | 'embed',
   status?: 'ready' | 'offline' | 'unknown',
   externalLinks?: [{ label: 'Spotify', url: 'https://…' }],  // rendered only when configured
+  nowPlaying?: { title, subtitle },   // real track metadata — shown in the player when known
   tags?, language?, region?, era?,
-  featured?: true,            // appears in FEATURED PICKS
+  featured?: true,            // part of the MIX rotation
   demo?: true,                // ships with locally generated sample audio
   sortOrder?: number,         // derived from array order unless set
 }
 ```
 
 Ratings, listener counts, heat and progress fields are intentionally absent from the model —
-the UI must never display invented data.
+the UI must never display invented data. The live badge reads `ON AIR / TUNING / PAUSED /
+READY / OFFLINE`, never a number.
 
-Current state: 31 seed stations, 6 of them playable with locally generated sample audio.
-Source pages are `https://example.org/…` placeholders — the validator warns (never fails) on
-them so a real inventory paste goes straight through CI.
+Current state: **37 seed stations** (8 flagships), 13 playable with locally generated sample
+audio whose `nowPlaying` metadata names those local files (`Demo Tape A/B/C`) rather than any
+licensed song. Source pages are `https://example.org/…` placeholders — the validator warns
+(never fails) on them so a real inventory paste goes straight through CI.
 
 **Licensing rule enforced by design:** the app only plays `audioUrl` values that the project is
 authorised to stream, opens external stations in a new tab, and shows *Check* rather than
@@ -143,16 +172,17 @@ faking playback for unavailable sources. No scraping, proxying or re-hosting.
 - `src/lib/sourcePolicy.ts` is the single decision point for play / open / check / blocked.
 - External links use `target=_blank rel=noopener noreferrer`.
 - Station metadata is rendered as text only — no `dangerouslySetInnerHTML` anywhere.
-- Favourites and volume live in `localStorage` under `nostalgia-radio:*` — IDs and
-  preferences only. No accounts, no secrets, no `VITE_*` keys, no analytics.
+- **The app stores nothing**: no `localStorage`, no cookies, no accounts, no secrets, no
+  `VITE_*` keys, no analytics, no network calls beyond the audio you press play on.
 
 ## Accessibility & motion
 
-- Every control keyboard-reachable with visible focus; `Space/K` play-pause, `←/→` station,
-  `↑/↓` volume, `/` or `⌘/Ctrl+K` search, `F` favourite, `S` share, `R` surprise, `M` mute,
-  `Esc` close. Category switches never interrupt playback.
-- `aria-live` announcements on station change, `aria-label` on icon-only buttons,
-  44px+ touch targets, text + colour for every state, alt text on all artwork.
+- Every control keyboard-reachable with visible focus; `Space/K` play-pause, `/` or
+  `⌘/Ctrl+K` search, `←/→` seek (or previous/next station when nothing is seekable),
+  `↑/↓` volume, `M` mute, `S` share, `R` surprise, `?` help, `Esc` close. Every shortcut also
+  has a visible control. Category switches never interrupt playback.
+- `aria-live` announcements on station change, `aria-pressed` on selectors, `aria-label` on
+  icon-only buttons, 44px+ touch targets, text + colour for every state, alt text on artwork.
 - Progress bars render only when a real duration exists — never simulated.
 - No autoplay without a user gesture; `prefers-reduced-motion` collapses all animation.
 
@@ -164,4 +194,4 @@ Static output in `dist/`. Any CDN works:
 - **Vercel**: copy the `/*` block from `public/_headers` into `vercel.json` → `headers`.
 
 Deep links are shareable and resolve to the same static app:
-`/?station=purane-naghme&category=ambient`.
+`/?station=truck-wala-radio&category=transit`.

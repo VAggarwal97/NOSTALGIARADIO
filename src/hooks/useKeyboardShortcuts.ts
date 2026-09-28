@@ -2,11 +2,12 @@ import { useEffect, useRef } from 'react';
 
 export interface ShortcutHandlers {
   togglePlay: () => void;
+  /** Seeks when the loaded track has real duration, otherwise changes station. */
   previous: () => void;
   next: () => void;
   toggleMute: () => void;
   openSearch: () => void;
-  toggleFavorite: () => void;
+  toggleHelp: () => void;
   share: () => void;
   surprise: () => void;
   closeOverlays: () => void;
@@ -61,13 +62,30 @@ export function useKeyboardShortcuts(handlers: ShortcutHandlers): void {
           event.preventDefault();
           handlersNow.togglePlay();
           break;
-        case 'ArrowRight':
+        case '/':
           event.preventDefault();
-          handlersNow.next();
+          handlersNow.openSearch();
+          break;
+        case '?':
+          event.preventDefault();
+          handlersNow.toggleHelp();
           break;
         case 'ArrowLeft':
           event.preventDefault();
           handlersNow.previous();
+          break;
+        case 'ArrowRight':
+          event.preventDefault();
+          handlersNow.next();
+          break;
+        case 'm':
+          handlersNow.toggleMute();
+          break;
+        case 's':
+          handlersNow.share();
+          break;
+        case 'r':
+          handlersNow.surprise();
           break;
         case 'ArrowUp':
           event.preventDefault();
@@ -76,26 +94,6 @@ export function useKeyboardShortcuts(handlers: ShortcutHandlers): void {
         case 'ArrowDown':
           event.preventDefault();
           handlersNow.volumeDown();
-          break;
-        case '/':
-          event.preventDefault();
-          handlersNow.openSearch();
-          break;
-        case 'm':
-        case 'M':
-          handlersNow.toggleMute();
-          break;
-        case 'f':
-        case 'F':
-          handlersNow.toggleFavorite();
-          break;
-        case 's':
-        case 'S':
-          void handlersNow.share();
-          break;
-        case 'r':
-        case 'R':
-          handlersNow.surprise();
           break;
         default:
           break;

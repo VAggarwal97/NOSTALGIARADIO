@@ -8,22 +8,13 @@ import { CloseIcon, SearchIcon, ShuffleIcon } from './Icons';
 
 interface SearchOverlayProps {
   open: boolean;
-  favorites: Station[];
-  showFavorites: boolean;
   onClose: () => void;
   onPick: (station: Station) => void;
   onSurprise: () => void;
 }
 
-/** Overlay search over the local dataset — no API request, no telemetry. */
-export function SearchOverlay({
-  open,
-  favorites,
-  showFavorites,
-  onClose,
-  onPick,
-  onSurprise,
-}: SearchOverlayProps) {
+/** Minimal overlay search over the local dataset — no API request, no telemetry. */
+export function SearchOverlay({ open, onClose, onPick, onSurprise }: SearchOverlayProps) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -37,10 +28,9 @@ export function SearchOverlay({
   }, [open]);
 
   const results = useMemo(() => {
-    if (showFavorites) return favorites;
     if (!query.trim()) return [];
     return searchStations(query);
-  }, [query, showFavorites, favorites]);
+  }, [query]);
 
   if (!open) return null;
 
@@ -63,11 +53,9 @@ export function SearchOverlay({
     }
   };
 
-  const heading = showFavorites
-    ? 'My stations'
-    : query.trim()
-      ? `${results.length} match${results.length === 1 ? '' : 'es'}`
-      : 'Search the archive';
+  const heading = query.trim()
+    ? `${results.length} match${results.length === 1 ? '' : 'es'}`
+    : 'Search the archive';
 
   return (
     <div
@@ -100,9 +88,7 @@ export function SearchOverlay({
         <div className="results" role="listbox" aria-label={heading}>
           {results.length === 0 ? (
             <p className="empty" style={{ margin: 'var(--space-3)' }}>
-              {showFavorites
-                ? 'Tap ♡ on a station to keep it on this device.'
-                : 'Try a place, language, mood or category — for example “Bihar”, “folk” or “chai”.'}
+              Try a place, language, mood or category — for example “Bihar”, “folk” or “chai”.
             </p>
           ) : (
             results.map((station, index) => {

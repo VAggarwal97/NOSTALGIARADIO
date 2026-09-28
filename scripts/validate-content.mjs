@@ -85,6 +85,8 @@ async function main() {
   if (!Array.isArray(CATEGORIES) || CATEGORIES.length === 0) fail('categories.ts exports no categories.');
 
   const categoryIds = new Set(CATEGORIES.map((c) => c.id));
+  const stationsById = new Map((STATIONS ?? []).map((s) => [s.id, s]));
+  const mixFlagshipId = CATEGORIES.find((c) => c.id === 'mix')?.flagship;
   const seenIds = new Map();
   const nameCounts = new Map();
 
@@ -94,6 +96,24 @@ async function main() {
       if (!hasText(category[field])) fail(`Category "${category.id}" is missing "${field}".`);
       else if (EXECUTABLE.test(category[field])) fail(`Category "${category.id}" field "${field}" contains executable markup.`);
     }
+    if (!/^#[0-9a-f]{6}$/i.test(String(category.accent ?? ''))) {
+      fail(`Category "${category.id}" accent must be a 6-digit hex colour, got "${category.accent}".`);
+    }
+
+    // Every chip must have an identity to switch the hero to.
+    const flagship = stationsById.get(category.flagship);
+    if (!flagship) {
+      fail(`Category "${category.id}" flagship "${category.flagship}" does not exist.`);
+      continue;
+    }
+    if (flagship.flagship !== true) fail(`Station "${flagship.id}" is the "${category.id}" flagship but is not marked \`flagship: true\`.`);
+    if (flagship.category !== category.id) {
+      fail(`Station "${flagship.id}" is the "${category.id}" flagship but its home category is "${flagship.category}".`);
+    }
+    if (!Array.isArray(flagship.titleLines) || flagship.titleLines.length !== 2 || flagship.titleLines.some((line) => !hasText(line))) {
+      fail(`Station "${flagship.id}" is a flagship and needs \`titleLines: [line1, line2]\`.`);
+    }
+    if (!hasText(flagship.description)) fail(`Station "${flagship.id}" is a flagship and needs a description.`);
   }
 
   for (const station of STATIONS ?? []) {
@@ -124,7 +144,13 @@ async function main() {
     }
 
     if (!categoryIds.has(station.category)) fail(`${at} uses unknown category "${station.category}".`);
-    else if (station.category === 'mix') fail(`${at} must use a home category, not "mix".`);
+    else if (station.category === 'mix' && station.id !== mixFlagshipId) {
+      fail(`${at} must use a home category; only the MIX flagship may use "mix".`);
+    }
+
+    if (station.accent !== undefined && !/^#[0-9a-f]{6}$/i.test(String(station.accent))) {
+      fail(`${at} accent must be a 6-digit hex colour, got "${station.accent}".`);
+    }
 
     if (!isSafeUrl(station.url)) fail(`${at} has an unsafe or invalid url: ${String(station.url)}`);
     else if (isPlaceholder(station.url)) warn(`${at} still uses a placeholder source URL.`);

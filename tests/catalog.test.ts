@@ -19,9 +19,27 @@ describe('catalog integrity', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('only uses known home categories', () => {
+  it('uses a real home category, except for the MIX flagship', () => {
     const known = new Set(CATEGORIES.filter((c) => c.id !== 'mix').map((c) => c.id));
-    for (const station of STATIONS) expect(known.has(station.category), station.id).toBe(true);
+    const mixFlagship = CATEGORIES.find((c) => c.id === 'mix')?.flagship;
+    for (const station of STATIONS) {
+      if (station.id === mixFlagship) expect(station.category, station.id).toBe('mix');
+      else expect(known.has(station.category), station.id).toBe(true);
+    }
+  });
+
+  it('gives every category exactly one flagship identity', () => {
+    const flagships = STATIONS.filter((s) => s.flagship);
+    expect(flagships.length).toBe(CATEGORIES.length);
+    for (const category of CATEGORIES) {
+      const flagship = findStation(category.flagship);
+      expect(flagship, category.id).toBeDefined();
+      expect(flagship?.flagship, category.id).toBe(true);
+      expect(flagship?.category, category.id).toBe(category.id);
+      expect(flagship?.titleLines?.length, category.id).toBe(2);
+      expect(flagship?.accent, category.id).toMatch(/^#[0-9a-f]{6}$/i);
+      expect(category.accent).toMatch(/^#[0-9a-f]{6}$/i);
+    }
   });
 
   it('mix returns only featured stations', () => {

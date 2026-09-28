@@ -1,28 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 
-import { CATEGORIES, CATEGORY_MAP, isCategoryId } from '../data/categories';
-import { EDITORIAL_MOMENTS } from '../data/editorial';
-import { FEATURED_STATIONS, STATIONS } from '../data/stations';
+import { CATEGORY_MAP, isCategoryId } from '../data/categories';
+import { STATIONS } from '../data/stations';
 import type { CategoryId, Station } from '../types/station';
 
 import { findStation, randomStation, stationsForCategory } from '../lib/catalog';
 import { audioUrlFor, decideSource, navigateSource } from '../lib/sourcePolicy';
 import { shareStation } from '../lib/share';
+import { stationAccent } from '../lib/hero';
 
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
-import { useFavorites } from '../hooks/useFavorites';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 
 import { TopNav } from '../components/TopNav';
-import { CategoryNav } from '../components/CategoryNav';
 import { CinematicHero } from '../components/CinematicHero';
 import type { PlayerState } from '../components/CinematicHero';
 import { FloatingPlayer } from '../components/FloatingPlayer';
-import { StationRail } from '../components/StationRail';
-import { EditorialMoment } from '../components/EditorialMoment';
-import { SiteFooter } from '../components/SiteFooter';
 import { SearchOverlay } from '../components/SearchOverlay';
 import { StationInfoModal } from '../components/StationInfoModal';
+import { HelpOverlay } from '../components/HelpOverlay';
 import { Toast } from '../components/Toast';
 
 const queryParam = (name: string): string | null =>
@@ -30,31 +27,43 @@ const queryParam = (name: string): string | null =>
     ? null
     : new URLSearchParams(window.location.search).get(name);
 
-export default function App() {
-  const [category, setCategory] = useState<CategoryId>(() => {
-    const fromUrl = queryParam('category');
-    if (fromUrl && isCategoryId(fromUrl)) return fromUrl;
-    const linked = findStation(queryParam('station'));
-    return linked ? linked.category : 'mix';
-  });
+/** Deep link first; otherwise the identity of the MIX chip. */
+const initialState = (): { category: CategoryId; station: Station | null } => {
+  const linked = findStation(queryParam('station'));
+  const fromUrl = queryParam('category');
+  const category: CategoryId = linked
+    ? linked.category
+    : fromUrl && isCategoryId(fromUrl)
+      ? fromUrl
+      : 'mix';
+  const station =
+    linked ?? findStation(CATEGORY_MAP[category]?.flagship) ?? STATIONS[0] ?? null;
+  return { category, station };
+};
 
-  const [selected, setSelected] = useState<Station | null>(
-    () => findStation(queryParam('station')) ?? FEATURED_STATIONS[0] ?? STATIONS[0] ?? null,
-  );
+/**
+ * One page, one experience. The header's category chips are station selectors:
+ * pressing one swaps the hero identity (artwork, title, copy, accent, track)
+ * without navigating, reloading or changing layout.
+ */
+export default function App() {
+  const [initial] = useState(initialState);
+  const [category, setCategory] = useState<CategoryId>(initial.category);
+  const [selected, setSelected] = useState<Station | null>(initial.station);
 
   const [searchOpen, setSearchOpen] = useState(false);
-  const [favoritesOpen, setFavoritesOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [playerExpanded, setPlayerExpanded] = useState(false);
+  const [playerMinimized, setPlayerMinimized] = useState(false);
   const [compact, setCompact] = useState(false);
   const [browserOnline, setBrowserOnline] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
 
-  const favorites = useFavorites();
   const toastTimer = useRef<number | null>(null);
 
-  // Sticky header tightens after the first scroll — same shell, smaller footprint.
+  // The header tightens after the first scroll — same shell, smaller footprint.
   useEffect(() => {
     const onScroll = () => setCompact(window.scrollY > 48);
     onScroll();
@@ -87,7 +96,7 @@ export default function App() {
   );
 
   // The player hook keeps `onEnded` in a ref, so a stable trampoline reaches the
-  // latest `advance` without re-creating the audio element.
+  // latest `step` without re-creating the audio element.
   const stepRef = useRef<(direction: 1 | -1) => void>(() => {});
   const advanceRef = useRef<(direction: 1 | -1) => void>(() => {});
   const player = useAudioPlayer({ onEnded: () => advanceRef.current(1) });
@@ -146,6 +155,22 @@ export default function App() {
     else await startStation(station);
   }, [selected, startStation, notify]);
 
+  /**
+   * The core interaction: a chip selects a station set and the hero switches to
+   * that category's flagship — same page, same layout, no route change.
+   * Audio already playing keeps playing across the switch.
+   */
+  const selectCategory = useCallback(
+    (id: CategoryId) => {
+      setCategory(id);
+      const flagship = findStation(CATEGORY_MAP[id]?.flagship);
+      if (!flagship) return;
+      const keepListening = playerRef.current.status === 'playing';
+      goTo(flagship, keepListening && decideSource(flagship).kind === 'play');
+    },
+    [goTo],
+  );
+
   const step = useCallback(
     (direction: 1 | -1) => {
       const list = pool.length > 0 ? pool : STATIONS;
@@ -168,13 +193,23 @@ export default function App() {
   stepRef.current = step;
   advanceRef.current = step;
 
+  /** ← → seek a track with real duration; otherwise they move between stations. */
+  const stepOrSeek = useCallback((direction: 1 | -1) => {
+    const current = playerRef.current;
+    if (current.duration > 0 && current.isPlayable && current.stationId) {
+      const target = Math.min(Math.max(current.currentTime + direction * 10, 0), current.duration);
+      current.seek(target);
+      return;
+    }
+    stepRef.current(direction);
+  }, []);
+
   const handleSelect = useCallback(
     (station: Station) => {
-      goTo(station);
-      const decision = decideSource(station);
-      if (decision.kind === 'play') playerRef.current.load(station.id, decision.audioUrl);
+      setCategory(station.category);
+      void startStation(station);
     },
-    [goTo],
+    [startStation],
   );
 
   const handlePrimary = useCallback(
@@ -203,16 +238,6 @@ export default function App() {
     [notify],
   );
 
-  const toggleFavorite = useCallback(
-    (station: Station | null) => {
-      if (!station) return;
-      const wasSaved = favorites.has(station.id);
-      favorites.toggle(station.id);
-      notify(wasSaved ? 'Removed from my stations.' : 'Saved to my stations on this device.');
-    },
-    [favorites, notify],
-  );
-
   const share = useCallback(
     async (station: Station | null) => {
       if (!station) return;
@@ -226,24 +251,43 @@ export default function App() {
 
   const surprise = useCallback(() => {
     const station = randomStation(selected?.id);
+    setCategory(station.category);
     goTo(station, true);
     notify(`Surprise: ${station.name}`);
   }, [selected, goTo, notify]);
 
   const openSearch = useCallback(() => {
-    setFavoritesOpen(false);
+    setHelpOpen(false);
+    setInfoOpen(false);
     setSearchOpen(true);
   }, []);
 
   const closeOverlays = useCallback(() => {
     setSearchOpen(false);
-    setFavoritesOpen(false);
     setInfoOpen(false);
+    setHelpOpen(false);
   }, []);
+
+  useKeyboardShortcuts({
+    togglePlay: () => void togglePlay(),
+    previous: () => stepOrSeek(-1),
+    next: () => stepOrSeek(1),
+    toggleMute: player.toggleMute,
+    openSearch,
+    toggleHelp: () => {
+      setInfoOpen(false);
+      setSearchOpen(false);
+      setHelpOpen((open) => !open);
+    },
+    share: () => void share(selected),
+    surprise,
+    closeOverlays,
+    volumeUp: () => player.setVolume(player.volume + 0.1),
+    volumeDown: () => player.setVolume(player.volume - 0.1),
+  });
 
   const isCurrentTrack = Boolean(selected && player.stationId === selected.id);
   const canPlay = Boolean(selected && decideSource(selected).kind === 'play');
-  const playingId = player.status === 'playing' ? player.stationId : null;
 
   const playerState: PlayerState = !browserOnline
     ? 'offline'
@@ -257,40 +301,28 @@ export default function App() {
             ? 'paused'
             : 'ready';
 
-  useKeyboardShortcuts({
-    togglePlay: () => void togglePlay(),
-    previous: () => stepRef.current(-1),
-    next: () => stepRef.current(1),
-    toggleMute: player.toggleMute,
-    openSearch,
-    toggleFavorite: () => toggleFavorite(selected),
-    share: () => void share(selected),
-    surprise,
-    closeOverlays,
-    volumeUp: () => player.setVolume(player.volume + 0.1),
-    volumeDown: () => player.setVolume(player.volume - 0.1),
-  });
+  // The pill always describes what is actually loaded or audible.
+  const loadedStation = player.stationId ? findStation(player.stationId) ?? null : null;
+  const audible = player.status === 'playing' || player.status === 'loading';
+  const playerStation = !loadedStation ? selected : audible ? loadedStation : selected;
 
-  const categoryMeta = CATEGORY_MAP[category];
-  const isMix = category === 'mix';
-  const collection = isMix ? STATIONS : pool;
-  const featured = FEATURED_STATIONS;
+  const serviceLinks = (selected?.externalLinks ?? []).filter((link) =>
+    /spotify|youtube/i.test(link.label),
+  );
 
-  const railTitle = isMix ? 'The whole archive' : (categoryMeta?.label ?? 'Stations');
-  const railNote = isMix ? `${STATIONS.length} stations` : categoryMeta?.tagline;
+  const shellStyle = {
+    '--accent': selected ? stationAccent(selected) : undefined,
+  } as CSSProperties;
 
   return (
-    <div className="shell grain">
+    <div className="shell grain" style={shellStyle}>
       <TopNav
-        nav={<CategoryNav active={category} onSelect={setCategory} />}
+        activeCategory={category}
         compact={compact}
-        favoriteCount={favorites.count}
+        serviceLinks={serviceLinks}
+        onSelectCategory={selectCategory}
         onOpenSearch={openSearch}
-        onOpenFavorites={() => {
-          setSearchOpen(false);
-          setFavoritesOpen(true);
-        }}
-        onSurprise={surprise}
+        onOpenHelp={() => setHelpOpen(true)}
       />
 
       <main>
@@ -298,108 +330,63 @@ export default function App() {
           station={selected}
           playerState={playerState}
           isCurrentTrack={isCurrentTrack}
-          onPrimary={() => void togglePlay()}
+          onPrimary={() => {
+            if (!selected) return;
+            // CTA reads "Pause" while this station is audible — toggle, don't restart.
+            if (isCurrentTrack && (playerState === 'playing' || playerState === 'buffering')) {
+              void togglePlay();
+            } else {
+              handlePrimary(selected);
+            }
+          }}
           onShare={() => void share(selected)}
           onInfo={() => setInfoOpen(true)}
         />
-
-        <div className="page">
-          <StationRail
-            id="featured"
-            title="Featured picks"
-            note="One from every corner"
-            stations={featured}
-            selectedId={selected?.id ?? null}
-            playingId={playingId}
-            emptyMessage="No featured stations yet."
-            onSelect={handleSelect}
-            onPrimary={handlePrimary}
-          />
-
-          <EditorialMoment moment={EDITORIAL_MOMENTS.tonights} />
-
-          <StationRail
-            id="collection"
-            key={category}
-            title={railTitle}
-            note={railNote}
-            stations={collection}
-            selectedId={selected?.id ?? null}
-            playingId={playingId}
-            emptyMessage="Nothing in this category yet — try another one above."
-            onSelect={handleSelect}
-            onPrimary={handlePrimary}
-          />
-
-          <EditorialMoment
-            moment={EDITORIAL_MOMENTS[category] ?? EDITORIAL_MOMENTS.default}
-          />
-        </div>
       </main>
 
-      <SiteFooter onOpenSearch={openSearch} />
-
       <FloatingPlayer
-        station={selected}
+        station={playerStation}
         playerState={playerState}
-        isCurrentTrack={isCurrentTrack}
+        isCurrentTrack={Boolean(playerStation && player.stationId === playerStation.id)}
         currentTime={player.currentTime}
         duration={player.duration}
         volume={player.volume}
         muted={player.muted}
         canPlay={canPlay}
         expanded={playerExpanded}
+        minimized={playerMinimized}
+        queue={pool}
         onToggleExpand={() => setPlayerExpanded((value) => !value)}
+        onToggleMinimize={() => setPlayerMinimized((value) => !value)}
         onPrevious={() => stepRef.current(-1)}
         onNext={() => stepRef.current(1)}
         onTogglePlay={() => void togglePlay()}
         onVolume={player.setVolume}
         onToggleMute={player.toggleMute}
         onSeek={player.seek}
-        onOpenSource={openSource}
+        onPick={handleSelect}
       />
 
       <SearchOverlay
         open={searchOpen}
-        showFavorites={false}
-        favorites={favorites.stations}
         onClose={() => setSearchOpen(false)}
-        onPick={(station) => {
-          goTo(station);
-          if (decideSource(station).kind === 'play') void startStation(station);
-        }}
-        onSurprise={surprise}
-      />
-
-      <SearchOverlay
-        open={favoritesOpen}
-        showFavorites
-        favorites={favorites.stations}
-        onClose={() => setFavoritesOpen(false)}
-        onPick={(station) => {
-          goTo(station);
-          setFavoritesOpen(false);
-        }}
+        onPick={handleSelect}
         onSurprise={surprise}
       />
 
       <StationInfoModal
         station={infoOpen ? selected : null}
-        isFavorite={selected ? favorites.has(selected.id) : false}
         onClose={() => setInfoOpen(false)}
-        onToggleFavorite={toggleFavorite}
         onShare={(station) => void share(station)}
         onOpenSource={openSource}
       />
+
+      <HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
 
       <Toast message={toast} />
 
       <div className="visually-hidden" role="status" aria-live="polite">
         {announcement}
-      </div>
-
-      <div className="visually-hidden">
-        Categories: {CATEGORIES.map((entry) => entry.label).join(', ')}
       </div>
     </div>
   );

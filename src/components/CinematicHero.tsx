@@ -1,7 +1,7 @@
 import type { Station } from '../types/station';
-import { CATEGORY_MAP } from '../data/categories';
 import { decideSource, labelForDecision } from '../lib/sourcePolicy';
-import { PlayIcon, PauseIcon, ShareIcon, InfoIcon, LoadingIcon } from './Icons';
+import { heroEyebrow, heroMeta, heroTitle } from '../lib/hero';
+import { PlayIcon, PauseIcon, ShareIcon, InfoIcon, LoadingIcon, PinIcon } from './Icons';
 
 export type PlayerState = 'ready' | 'buffering' | 'playing' | 'paused' | 'offline' | 'error';
 
@@ -14,17 +14,17 @@ interface CinematicHeroProps {
   onInfo: () => void;
 }
 
-const stateCopy: Record<PlayerState, string> = {
+/** Non-numeric station flavour — this is a radio badge, not an analytics widget. */
+const badgeCopy: Record<PlayerState, string> = {
   ready: 'Ready',
-  buffering: 'Buffering',
+  buffering: 'Tuning in',
   playing: 'On air',
   paused: 'Paused',
   offline: 'Offline',
   error: 'Signal problem',
 };
 
-const heroState = (station: Station | null, state: PlayerState, current: boolean): PlayerState => {
-  if (!station) return 'ready';
+const badgeState = (state: PlayerState, current: boolean): PlayerState => {
   if (state === 'offline' || state === 'error') return state;
   return current ? state : 'ready';
 };
@@ -39,14 +39,16 @@ export function CinematicHero({
 }: CinematicHeroProps) {
   if (!station) {
     return (
-      <section className="hero" aria-label="Now featured">
+      <section className="hero" aria-label="Nostalgia Radio">
         <div className="hero-scrim" />
         <div className="hero-content wrap">
           <p className="eyebrow">Nostalgia Radio</p>
-          <h1 className="hero-title">Some places are better remembered with a song.</h1>
+          <h1 className="hero-title">
+            Some places are better
+            <span className="line-2">remembered with a song.</span>
+          </h1>
           <p className="hero-description">
-            Pick a category above and press play. No account, no catalogue — one screen of stations
-            from the old roads.
+            Pick a station above and press play — no account, no catalogue, just the old roads.
           </p>
         </div>
       </section>
@@ -54,14 +56,14 @@ export function CinematicHero({
   }
 
   const decision = decideSource(station);
-  const category = CATEGORY_MAP[station.category];
-  const offline = station.status === 'offline' || station.status === 'unknown';
-  const showState = heroState(station, playerState, isCurrentTrack);
+  const [line1, line2] = heroTitle(station);
+  const meta = heroMeta(station);
+  const state = badgeState(playerState, isCurrentTrack);
+  const playingNow = isCurrentTrack && playerState === 'playing';
+  const buffering = isCurrentTrack && playerState === 'buffering';
 
   const primaryLabel =
-    decision.kind === 'play' ? 'Play' : labelForDecision(decision);
-
-  const artworkAlt = `${station.name} — ${station.region ?? 'nostalgia'} scene`;
+    playingNow ? 'Pause' : decision.kind === 'play' ? 'Play' : labelForDecision(decision);
 
   return (
     <section className="hero" aria-label={`Featured station: ${station.name}`}>
@@ -69,26 +71,34 @@ export function CinematicHero({
         className="hero-art"
         key={station.artwork}
         src={station.artwork}
-        alt={artworkAlt}
+        alt={`${station.name} — cinematic station artwork`}
         decoding="async"
       />
       <div className="hero-scrim" />
 
+      <span className="live-badge" data-state={state}>
+        <span className="dot" aria-hidden="true" />
+        {badgeCopy[state]}
+      </span>
+
       <div className="hero-content wrap" key={`${station.id}-content`}>
         <div className="hero-fade">
-          <p className="eyebrow">
-            {category?.icon} {category?.label ?? station.category}
-            {station.demo ? ' · sample audio' : ''}
-          </p>
+          <p className="eyebrow">{heroEyebrow(station)}</p>
 
-          <h1 className="hero-title">{station.name}</h1>
+          <h1 className="hero-title">
+            {line1}
+            {line2 ? <span className="line-2">{line2}</span> : null}
+          </h1>
+
           <p className="hero-description">{station.description}</p>
 
           <div className="meta-strip">
-            {station.region ? <span>{station.region}</span> : null}
-            {station.era ? <span>{station.era}</span> : null}
-            {station.language?.length ? <span>{station.language.join(' · ')}</span> : null}
-            <span>{offline ? 'Check source' : decision.kind === 'play' ? 'Streaming' : 'Source page'}</span>
+            <span>
+              <PinIcon size={13} />
+              {meta.join(' · ')}
+            </span>
+            {station.demo ? <span>Sample audio</span> : null}
+            {decision.kind === 'play' ? null : <span>Source page</span>}
           </div>
 
           <div className="hero-actions">
@@ -98,14 +108,14 @@ export function CinematicHero({
               onClick={onPrimary}
               disabled={decision.kind === 'blocked'}
             >
-              {playerState === 'buffering' && isCurrentTrack ? (
+              {buffering ? (
                 <LoadingIcon size={16} />
-              ) : isCurrentTrack && playerState === 'playing' ? (
+              ) : playingNow ? (
                 <PauseIcon size={16} />
               ) : (
                 <PlayIcon size={16} />
               )}
-              {isCurrentTrack && playerState === 'playing' ? 'Pause' : primaryLabel}
+              {primaryLabel}
             </button>
 
             <div className="hero-utility">
@@ -118,13 +128,26 @@ export function CinematicHero({
                 <span className="visually-hidden">Station details</span>
               </button>
             </div>
-
-            <span className="hero-status" data-state={showState}>
-              <span className="dot" aria-hidden="true" />
-              {stateCopy[showState]}
-            </span>
           </div>
         </div>
+      </div>
+
+      <div className="hero-hints" aria-hidden="true">
+        <span>
+          <span className="kbd">Space</span>Play / Pause
+        </span>
+        <span>
+          <span className="kbd">← →</span>Seek / Station
+        </span>
+        <span>
+          <span className="kbd">M</span>Mute
+        </span>
+        <span>
+          <span className="kbd">S</span>Share
+        </span>
+        <span>
+          <span className="kbd">?</span>Help
+        </span>
       </div>
     </section>
   );

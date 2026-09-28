@@ -1,49 +1,52 @@
 /* ───────────────────────────────────────────────────────────────────────────
    Nostalgia Radio — design tokens
-   Warm dark canvas · editorial serif · cinematic restraint
+   Cinematic dark canvas · editorial serif · station accent that adapts
+   Visual priority: artwork → station identity → music → minimal controls
    ─────────────────────────────────────────────────────────────────────────── */
 
 :root {
   color-scheme: dark;
 
-  /* Surfaces */
-  --bg: #0b0807;
-  --bg-deep: #070404;
-  --surface: #15100d;
-  --elevated: #1d1511;
-  --glass: rgba(21, 16, 13, 0.72);
+  /* Surfaces (warm near-black) */
+  --bg: #080807;
+  --bg-deep: #050404;
+  --surface: #0d0c0b;
+  --elevated: #12100e;
+  --glass: rgba(13, 12, 11, 0.62);
 
   /* Ink */
   --ivory: #f4ebdd;
-  --cream: #cdbda8;
-  --muted: #9b8b7a;
+  --cream: rgba(244, 235, 221, 0.65);
+  --muted: rgba(244, 235, 221, 0.45);
+  --faint: rgba(244, 235, 221, 0.22);
 
-  /* Accents */
-  --amber: #d7a451;
-  --amber-soft: #f0d8a6;
-  --terracotta: #a94a38;
-  --wine: #4b1717;
-  --live: #62d49b;
-  --danger: #e08a76;
+  /* Accent — overridden per station on the app root */
+  --accent: #f05a45;
+  --accent-2: #d89a54;
+  /* Lightened accent for small text, keeps body-size contrast readable */
+  --accent-text: color-mix(in srgb, var(--accent) 74%, var(--ivory));
 
-  /* Lines */
-  --border: #3a2a20;
-  --border-strong: #55402f;
+  /* Lines & glass */
+  --border: rgba(244, 235, 221, 0.12);
+  --border-strong: rgba(244, 235, 221, 0.24);
+  --glass-edge: rgba(255, 255, 255, 0.08);
 
   /* Type */
   --font-display: 'Cormorant Garamond', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
   --font-sans: 'Inter', 'Helvetica Neue', 'Segoe UI', Arial, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 
-  --size-brand: clamp(1.5rem, 1.1rem + 0.9vw, 2.25rem); /* 24–36px */
-  --size-hero: clamp(2.5rem, 1.4rem + 4.6vw, 6rem); /* 40–96px */
+  --size-brand: clamp(1.35rem, 1rem + 0.8vw, 2rem); /* 21–32px */
+  --size-hero: clamp(3rem, 1rem + 7vw, 7.5rem); /* 48–120px */
+  --size-hero-2: clamp(2.75rem, 0.9rem + 6.2vw, 6.9rem); /* 44–110px */
   --size-heading: clamp(1.35rem, 1.1rem + 0.9vw, 1.9rem);
-  --size-body: 1rem; /* 16px */
-  --size-lead: clamp(1rem, 0.95rem + 0.3vw, 1.25rem); /* 16–20px */
+  --size-card-title: 1.0625rem; /* 17px */
+  --size-card-body: 0.875rem; /* 14px */
+  --size-body: 1rem;
+  --size-lead: clamp(1rem, 0.95rem + 0.35vw, 1.3rem); /* 16–21px */
   --size-nav: 0.75rem; /* 12px */
   --size-meta: 0.78rem; /* ~12.5px */
-  --size-card-title: 1.0625rem; /* 17px */
-  --size-card-body: 0.8125rem; /* 13px */
+  --size-eyebrow: 0.8125rem; /* 13px — letter-spacing 4–6px via .36em */
 
   /* Space */
   --space-1: 0.25rem;
@@ -55,24 +58,25 @@
   --space-7: 3rem;
   --space-8: clamp(2.5rem, 5vw, 5rem);
 
-  /* Radius — large surfaces 18–28px, small controls 10–16px */
+  /* Radius */
   --radius-sm: 12px;
-  --radius-md: 18px;
-  --radius-lg: 26px;
+  --radius-md: 20px;
+  --radius-lg: 28px;
   --radius-pill: 999px;
 
   /* Content width */
-  --content: 1320px;
+  --content: 1440px;
 
   /* Elevation */
-  --shadow-card: 0 14px 34px rgba(0, 0, 0, 0.45);
-  --shadow-lift: 0 24px 54px rgba(0, 0, 0, 0.6);
-  --shadow-player: 0 18px 46px rgba(0, 0, 0, 0.62);
+  --shadow-card: 0 18px 40px rgba(0, 0, 0, 0.45);
+  --shadow-lift: 0 30px 70px rgba(0, 0, 0, 0.65);
+  --shadow-player: 0 26px 70px rgba(0, 0, 0, 0.6);
 
-  /* Motion — UI 180–300ms, hero crossfade 500–900ms, cards 150–220ms */
+  /* Motion — UI 180–300ms, hero crossfade 600–900ms, cards 150–220ms */
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
   --dur-fast: 180ms;
   --dur: 260ms;
-  --dur-hero: 700ms;
+  --dur-hero: 780ms;
+  --dur-title: 520ms;
   --dur-sheet: 300ms;
 }
