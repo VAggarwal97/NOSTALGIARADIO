@@ -109,9 +109,18 @@ async function main() {
 
     nameCounts.set(station.name, (nameCounts.get(station.name) ?? 0) + 1);
 
-    for (const field of ['name', 'description', 'url']) {
+    for (const field of ['name', 'description', 'url', 'artwork']) {
       if (!hasText(station[field])) fail(`${at} is missing required field "${field}".`);
       else if (EXECUTABLE.test(station[field])) fail(`${at} field "${field}" contains executable markup.`);
+    }
+
+    if (hasText(station.artwork)) {
+      if (!/^\/art\/[a-z0-9-]+\.svg$/.test(station.artwork)) {
+        fail(`${at} artwork must be a local /art/*.svg path, got "${station.artwork}".`);
+      } else {
+        const artworkFile = path.join(ROOT, 'public', station.artwork.replace(/^\//, ''));
+        if (!fs.existsSync(artworkFile)) fail(`${at} artwork file is missing: ${station.artwork}`);
+      }
     }
 
     if (!categoryIds.has(station.category)) fail(`${at} uses unknown category "${station.category}".`);
@@ -142,8 +151,8 @@ async function main() {
     if (!hasText(station.region)) warn(`${at} is missing region.`);
     if (!hasText(station.era)) warn(`${at} is missing era.`);
     if (!Array.isArray(station.tags) || station.tags.length === 0) warn(`${at} has no tags.`);
-    if (station.availability === 'unavailable' && station.action === 'play') {
-      warn(`${at} is flagged unavailable but is playable — the UI will show "Check Station".`);
+    if (station.status === 'offline' && station.action === 'play') {
+      warn(`${station.id} is flagged offline but is playable — the UI will show "Check Station".`);
     }
   }
 

@@ -6,7 +6,7 @@ import { searchStations } from '../lib/catalog';
 import { decideSource } from '../lib/sourcePolicy';
 import { CloseIcon, SearchIcon, ShuffleIcon } from './Icons';
 
-interface SearchDialogProps {
+interface SearchOverlayProps {
   open: boolean;
   favorites: Station[];
   showFavorites: boolean;
@@ -15,15 +15,15 @@ interface SearchDialogProps {
   onSurprise: () => void;
 }
 
-/** Local dataset search. No API request, no telemetry, no recent-search server. */
-export function SearchDialog({
+/** Overlay search over the local dataset — no API request, no telemetry. */
+export function SearchOverlay({
   open,
   favorites,
   showFavorites,
   onClose,
   onPick,
   onSurprise,
-}: SearchDialogProps) {
+}: SearchOverlayProps) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -32,7 +32,6 @@ export function SearchDialog({
     if (open) {
       setQuery('');
       setActive(0);
-      // Focus after paint so the dialog is mounted.
       requestAnimationFrame(() => inputRef.current?.focus());
     }
   }, [open]);
@@ -102,7 +101,7 @@ export function SearchDialog({
           {results.length === 0 ? (
             <p className="empty" style={{ margin: 'var(--space-3)' }}>
               {showFavorites
-                ? 'Tap ♡ to save a station on this device.'
+                ? 'Tap ♡ on a station to keep it on this device.'
                 : 'Try a place, language, mood or category — for example “Bihar”, “folk” or “chai”.'}
             </p>
           ) : (
@@ -121,15 +120,19 @@ export function SearchDialog({
                   onClick={() => pick(station)}
                 >
                   <span className="result-index">{String(index + 1).padStart(2, '0')}</span>
+                  <img className="result-art" src={station.artwork} alt="" loading="lazy" />
                   <span>
                     <span className="result-name">{station.name}</span>
-                    <br />
                     <span className="result-meta">
-                      {category?.label} · {station.region ?? 'Archive'} · {station.era ?? '—'}
+                      {category?.shortLabel} · {station.region ?? 'Archive'} · {station.era ?? '—'}
                     </span>
                   </span>
                   <span className="result-meta">
-                    {decision.kind === 'play' ? 'Play' : decision.kind === 'check' ? 'Check' : 'Open'}
+                    {decision.kind === 'play'
+                      ? 'Play'
+                      : decision.kind === 'check'
+                        ? 'Check'
+                        : 'Open'}
                   </span>
                 </button>
               );
@@ -141,8 +144,8 @@ export function SearchDialog({
           <span>↑ ↓ move</span>
           <span>Enter select</span>
           <span>Esc close</span>
-          <button type="button" className="card-action" onClick={onSurprise}>
-            <ShuffleIcon size={11} /> Surprise me
+          <button type="button" className="link-chip" onClick={onSurprise}>
+            <ShuffleIcon size={12} /> Surprise me
           </button>
         </div>
       </div>

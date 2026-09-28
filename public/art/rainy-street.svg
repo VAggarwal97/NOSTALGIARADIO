@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" preserveAspectRatio="xMidYMid slice">
+  
+  <defs>
+    <linearGradient id="sky-rain" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2A0E0E"/>
+      <stop offset="0.4" stop-color="#4B1717"/>
+      <stop offset="0.6" stop-color="#A94A38"/>
+      <stop offset="1" stop-color="#0B0807"/>
+    </linearGradient>
+    <radialGradient id="glow-rain" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#D7A451" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#D7A451" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="fade-rain" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0B0807" stop-opacity="0.88"/>
+      <stop offset="0.42" stop-color="#0B0807" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#0B0807" stop-opacity="0.05"/>
+    </linearGradient>
+    <filter id="grain-rain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.16"/></feComponentTransfer>
+    </filter>
+    <filter id="soft-rain"><feGaussianBlur stdDeviation="7"/></filter>
+    <filter id="soft2-rain"><feGaussianBlur stdDeviation="16"/></filter>
+  </defs>
+  <rect width="1600" height="900" fill="url(#sky-rain)"/>
+  
+    <ellipse cx="1180" cy="360" rx="260" ry="200" fill="url(#glow-rain)"/>
+    <g fill="#2A0E0E" opacity="0.85">
+      <rect x="60" y="200" width="300" height="460"/>
+      <rect x="420" y="150" width="260" height="510"/>
+      <rect x="740" y="230" width="300" height="430"/>
+      <rect x="1100" y="140" width="440" height="520"/>
+    </g>
+    <g fill="#D7A451" opacity="0.5">
+      <rect x="110" y="260" width="44" height="58" rx="6"/><rect x="200" y="330" width="44" height="58" rx="6"/><rect x="470" y="400" width="44" height="58" rx="6"/><rect x="560" y="260" width="44" height="58" rx="6"/><rect x="790" y="330" width="44" height="58" rx="6"/><rect x="880" y="400" width="44" height="58" rx="6"/><rect x="1160" y="260" width="44" height="58" rx="6"/><rect x="1270" y="330" width="44" height="58" rx="6"/><rect x="1400" y="400" width="44" height="58" rx="6"/>
+    </g>
+    <path d="M0 660 h1600 v240 H0 z" fill="#0A0706"/>
+    <path d="M0 660 h1600 v10 H0 z" fill="#A94A38" opacity="0.5"/>
+    <g fill="#0B0807">
+      <path d="M480 660 q46-70 116-70 q72 0 118 70 z"/>
+      <rect x="592" y="660" width="8" height="90"/>
+      <path d="M980 660 q40-60 100-60 q62 0 102 60 z"/>
+      <rect x="1078" y="660" width="8" height="80"/>
+      <circle cx="596" cy="576" r="30"/>
+      <circle cx="1082" cy="588" r="26"/>
+    </g>
+    <g stroke="#F4EBDD" stroke-width="2.5" opacity="0.22">
+      <path d="M0 0 l-14 68"/><path d="M37 149 l-14 68"/><path d="M74 298 l-14 68"/><path d="M111 447 l-14 68"/><path d="M148 596 l-14 68"/><path d="M185 45 l-14 68"/><path d="M222 194 l-14 68"/><path d="M259 343 l-14 68"/><path d="M296 492 l-14 68"/><path d="M333 641 l-14 68"/><path d="M370 90 l-14 68"/><path d="M407 239 l-14 68"/><path d="M444 388 l-14 68"/><path d="M481 537 l-14 68"/><path d="M518 686 l-14 68"/><path d="M555 135 l-14 68"/><path d="M592 284 l-14 68"/><path d="M629 433 l-14 68"/><path d="M666 582 l-14 68"/><path d="M703 31 l-14 68"/><path d="M740 180 l-14 68"/><path d="M777 329 l-14 68"/><path d="M814 478 l-14 68"/><path d="M851 627 l-14 68"/><path d="M888 76 l-14 68"/><path d="M925 225 l-14 68"/><path d="M962 374 l-14 68"/><path d="M999 523 l-14 68"/><path d="M1036 672 l-14 68"/><path d="M1073 121 l-14 68"/><path d="M1110 270 l-14 68"/><path d="M1147 419 l-14 68"/><path d="M1184 568 l-14 68"/><path d="M1221 17 l-14 68"/><path d="M1258 166 l-14 68"/><path d="M1295 315 l-14 68"/><path d="M1332 464 l-14 68"/><path d="M1369 613 l-14 68"/><path d="M1406 62 l-14 68"/><path d="M1443 211 l-14 68"/><path d="M1480 360 l-14 68"/><path d="M1517 509 l-14 68"/><path d="M1554 658 l-14 68"/><path d="M1591 107 l-14 68"/><path d="M28 256 l-14 68"/><path d="M65 405 l-14 68"/>
+    </g>
+    <g opacity="0.35" filter="url(#soft-rain)">
+      <ellipse cx="600" cy="740" rx="120" ry="20" fill="#D7A451"/>
+      <ellipse cx="1120" cy="790" rx="150" ry="24" fill="#A94A38"/>
+      <ellipse cx="300" cy="820" rx="100" ry="18" fill="#F0D8A6"/>
+    </g>
+  <rect width="1600" height="900" fill="url(#fade-rain)"/>
+  <rect width="1600" height="900" filter="url(#grain-rain)" opacity="0.5"/>
+  <rect width="1600" height="900" fill="none"/>
+  <radialGradient id="vig-rain" cx="0.5" cy="0.5" r="0.75">
+    <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+    <stop offset="1" stop-color="#000" stop-opacity="0.62"/>
+  </radialGradient>
+  <rect width="1600" height="900" fill="url(#vig-rain)"/>
+</svg>

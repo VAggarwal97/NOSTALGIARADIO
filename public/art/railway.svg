@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" preserveAspectRatio="xMidYMid slice">
+  
+  <defs>
+    <linearGradient id="sky-rail" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2A0E0E"/>
+      <stop offset="0.4" stop-color="#4B1717"/>
+      <stop offset="0.6" stop-color="#A94A38"/>
+      <stop offset="1" stop-color="#0B0807"/>
+    </linearGradient>
+    <radialGradient id="glow-rail" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#D7A451" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#D7A451" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="fade-rail" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0B0807" stop-opacity="0.88"/>
+      <stop offset="0.42" stop-color="#0B0807" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#0B0807" stop-opacity="0.05"/>
+    </linearGradient>
+    <filter id="grain-rail" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.16"/></feComponentTransfer>
+    </filter>
+    <filter id="soft-rail"><feGaussianBlur stdDeviation="7"/></filter>
+    <filter id="soft2-rail"><feGaussianBlur stdDeviation="16"/></filter>
+  </defs>
+  <rect width="1600" height="900" fill="url(#sky-rail)"/>
+  
+    <rect width="1600" height="900" fill="url(#sky-rail)"/>
+    <circle cx="380" cy="300" r="60" fill="#F0D8A6" opacity="0.7"/>
+    <g fill="#0B0807">
+      <rect x="0" y="640" width="1600" height="260"/>
+      <rect x="120" y="120" width="26" height="520"/>
+      <rect x="560" y="120" width="26" height="520"/>
+      <rect x="1040" y="120" width="26" height="520"/>
+      <rect x="1460" y="120" width="26" height="520"/>
+      <path d="M60 150 h1480 v40 H60 z"/>
+      <path d="M60 190 h1480 v16 H60 z" opacity="0.7"/>
+    </g>
+    <g transform="translate(760 330)">
+      <rect x="0" y="0" width="720" height="300" rx="26" fill="#2A0E0E"/>
+      <path d="M0 0 h720 v70 H0 z" fill="#A94A38" opacity="0.55"/>
+      <g fill="#0A0505" opacity="0.85">
+        <rect x="60" y="96" width="110" height="96" rx="10"/>
+        <rect x="210" y="96" width="110" height="96" rx="10"/>
+        <rect x="360" y="96" width="110" height="96" rx="10"/>
+        <rect x="510" y="96" width="110" height="96" rx="10"/>
+      </g>
+      <circle cx="676" cy="200" r="26" fill="#D7A451"/>
+      <circle cx="676" cy="200" r="60" fill="url(#glow-rail)"/>
+      <rect x="0" y="286" width="720" height="24" fill="#0A0505"/>
+    </g>
+    <g fill="#0A0505">
+      <rect x="0" y="700" width="1600" height="14"/>
+      <rect x="0" y="760" width="1600" height="10" opacity="0.6"/>
+    </g>
+    <g stroke="#D7A451" stroke-width="6" opacity="0.35">
+      <path d="M0 706 h1600"/>
+    </g>
+    <g fill="#0B0807">
+      <rect x="240" y="500" width="60" height="150" rx="14"/>
+      <circle cx="270" cy="470" r="34"/>
+      <rect x="360" y="520" width="54" height="130" rx="14"/>
+      <circle cx="387" cy="494" r="30"/>
+    </g>
+    <circle cx="1330" cy="230" r="18" fill="#D7A451"/>
+    <circle cx="1330" cy="280" r="14" fill="#A94A38"/>
+    <rect x="1316" y="200" width="28" height="180" fill="#0B0807"/>
+  <rect width="1600" height="900" fill="url(#fade-rail)"/>
+  <rect width="1600" height="900" filter="url(#grain-rail)" opacity="0.5"/>
+  <rect width="1600" height="900" fill="none"/>
+  <radialGradient id="vig-rail" cx="0.5" cy="0.5" r="0.75">
+    <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+    <stop offset="1" stop-color="#000" stop-opacity="0.62"/>
+  </radialGradient>
+  <rect width="1600" height="900" fill="url(#vig-rail)"/>
+</svg>

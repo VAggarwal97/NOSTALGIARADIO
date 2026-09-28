@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" preserveAspectRatio="xMidYMid slice">
+  
+  <defs>
+    <linearGradient id="sky-nbh" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2A0E0E"/>
+      <stop offset="0.4" stop-color="#4B1717"/>
+      <stop offset="0.6" stop-color="#A94A38"/>
+      <stop offset="1" stop-color="#0B0807"/>
+    </linearGradient>
+    <radialGradient id="glow-nbh" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#D7A451" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#D7A451" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="fade-nbh" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0B0807" stop-opacity="0.88"/>
+      <stop offset="0.42" stop-color="#0B0807" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#0B0807" stop-opacity="0.05"/>
+    </linearGradient>
+    <filter id="grain-nbh" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.16"/></feComponentTransfer>
+    </filter>
+    <filter id="soft-nbh"><feGaussianBlur stdDeviation="7"/></filter>
+    <filter id="soft2-nbh"><feGaussianBlur stdDeviation="16"/></filter>
+  </defs>
+  <rect width="1600" height="900" fill="url(#sky-nbh)"/>
+  
+    <circle cx="1280" cy="220" r="72" fill="#F0D8A6" opacity="0.85"/>
+    <circle cx="1280" cy="220" r="150" fill="url(#glow-nbh)" opacity="0.6"/>
+    <g fill="#2A0E0E" opacity="0.9">
+      <rect x="0" y="440" width="260" height="300"/>
+      <rect x="300" y="380" width="200" height="360"/>
+      <rect x="540" y="470" width="280" height="270"/>
+      <rect x="860" y="400" width="220" height="340"/>
+      <rect x="1120" y="480" width="240" height="260"/>
+      <rect x="1400" y="420" width="200" height="320"/>
+    </g>
+    <g fill="#0A0605">
+      <rect x="40" y="390" width="90" height="70" rx="8"/>
+      <rect x="360" y="330" width="70" height="60" rx="8"/>
+      <rect x="920" y="350" width="80" height="60" rx="8"/>
+      <rect x="1450" y="370" width="70" height="60" rx="8"/>
+      <path d="M120 390 h10 v-40 h-10 z M600 470 h10 v-50 h-10 z M1200 480 h10 v-46 h-10 z"/>
+    </g>
+    <g fill="#D7A451" opacity="0.65">
+      <rect x="30" y="480" width="34" height="44" rx="5"/><rect x="90" y="534" width="34" height="44" rx="5"/><rect x="150" y="588" width="34" height="44" rx="5"/><rect x="330" y="642" width="34" height="44" rx="5"/><rect x="390" y="480" width="34" height="44" rx="5"/><rect x="580" y="534" width="34" height="44" rx="5"/><rect x="650" y="588" width="34" height="44" rx="5"/><rect x="720" y="642" width="34" height="44" rx="5"/><rect x="890" y="480" width="34" height="44" rx="5"/><rect x="960" y="534" width="34" height="44" rx="5"/><rect x="1150" y="588" width="34" height="44" rx="5"/><rect x="1220" y="642" width="34" height="44" rx="5"/><rect x="1440" y="480" width="34" height="44" rx="5"/><rect x="1500" y="534" width="34" height="44" rx="5"/>
+    </g>
+    <g stroke="#0A0605" stroke-width="5" fill="none" opacity="0.85">
+      <path d="M0 340 q400 70 800 0 q400-70 800 10"/>
+      <path d="M0 386 q420 84 820 6 q380-74 780 6"/>
+    </g>
+    <path d="M0 740 h1600 v160 H0 z" fill="#070404"/>
+    <g fill="#0B0807">
+      <path d="M700 740 q44-150 100-150 q58 0 102 150 z"/>
+      <circle cx="800" cy="560" r="38"/>
+    </g>
+    <g fill="#D7A451" opacity="0.5">
+      <circle cx="240" cy="300" r="4"/><circle cx="700" cy="250" r="3"/>
+      <circle cx="1040" cy="300" r="4"/><circle cx="500" cy="220" r="3"/>
+    </g>
+  <rect width="1600" height="900" fill="url(#fade-nbh)"/>
+  <rect width="1600" height="900" filter="url(#grain-nbh)" opacity="0.5"/>
+  <rect width="1600" height="900" fill="none"/>
+  <radialGradient id="vig-nbh" cx="0.5" cy="0.5" r="0.75">
+    <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+    <stop offset="1" stop-color="#000" stop-opacity="0.62"/>
+  </radialGradient>
+  <rect width="1600" height="900" fill="url(#vig-nbh)"/>
+</svg>

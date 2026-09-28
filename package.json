@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Nostalgia Radio — a modern single-screen public listening experience with an old Indian radio/cassette soul.",
+  "description": "Nostalgia Radio — a cinematic single-page listening experience with an old Indian radio/cassette soul.",
   "scripts": {
     "dev": "vite",
     "build": "npm run validate:content && tsc -b && vite build",
@@ -14,7 +14,8 @@
     "validate:content": "node scripts/validate-content.mjs",
     "smoke": "node scripts/smoke-render.mjs",
     "lint:security": "node scripts/validate-content.mjs --strict",
-    "demo:audio": "node scripts/generate-demo-audio.mjs"
+    "demo:audio": "node scripts/generate-demo-audio.mjs",
+    "art": "node scripts/generate-artwork.mjs"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.3.0",
@@ -24,6 +25,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@types/node": "^26.6.3",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",

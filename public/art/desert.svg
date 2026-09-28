@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" preserveAspectRatio="xMidYMid slice">
+  
+  <defs>
+    <linearGradient id="sky-dst" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2A0E0E"/>
+      <stop offset="0.4" stop-color="#4B1717"/>
+      <stop offset="0.6" stop-color="#A94A38"/>
+      <stop offset="1" stop-color="#0B0807"/>
+    </linearGradient>
+    <radialGradient id="glow-dst" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#D7A451" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#D7A451" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="fade-dst" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0B0807" stop-opacity="0.88"/>
+      <stop offset="0.42" stop-color="#0B0807" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#0B0807" stop-opacity="0.05"/>
+    </linearGradient>
+    <filter id="grain-dst" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.16"/></feComponentTransfer>
+    </filter>
+    <filter id="soft-dst"><feGaussianBlur stdDeviation="7"/></filter>
+    <filter id="soft2-dst"><feGaussianBlur stdDeviation="16"/></filter>
+  </defs>
+  <rect width="1600" height="900" fill="url(#sky-dst)"/>
+  
+    <circle cx="1120" cy="330" r="94" fill="#F0D8A6" opacity="0.9"/>
+    <circle cx="1120" cy="330" r="200" fill="url(#glow-dst)"/>
+    <path d="M0 520 q300-70 620 0 q340 76 980-24 v404 H0 z" fill="#2A0E0E" opacity="0.85"/>
+    <path d="M0 640 q360-60 760 10 q380 66 840-30 v280 H0 z" fill="#0B0807"/>
+    <path d="M0 760 q420-50 820 20 q360 64 780-40 v160 H0 z" fill="#070404"/>
+    <g fill="#0B0807">
+      <path d="M300 640 q30-70 84-70 q56 0 86 70 l-14 6 q-16-40-72-40 q-54 0-70 40 z"/>
+      <rect x="352" y="586" width="16" height="60"/>
+      <path d="M430 640 l14-52 16 6 -10 46 z"/>
+      <circle cx="376" cy="556" r="24"/>
+      <path d="M376 580 q16 22 8 40 l-16 0 q4-20-6-38 z"/>
+      <rect x="344" y="700" width="14" height="60"/>
+      <rect x="430" y="700" width="14" height="60"/>
+    </g>
+    <g transform="translate(880 520)">
+      <path d="M0 160 h320 v-24 q0-80-60-120 h-200 q-60 40-60 120 z" fill="#0B0807"/>
+      <rect x="60" y="160" width="26" height="110"/>
+      <rect x="230" y="160" width="26" height="110"/>
+      <path d="M120 16 q40-70 80 0 z" fill="#A94A38"/>
+      <circle cx="160" cy="-24" r="16" fill="#0B0807"/>
+      <rect x="154" y="-64" width="12" height="40"/>
+    </g>
+    <g fill="#D7A451" opacity="0.35">
+      <ellipse cx="1120" cy="800" rx="260" ry="30"/>
+    </g>
+  <rect width="1600" height="900" fill="url(#fade-dst)"/>
+  <rect width="1600" height="900" filter="url(#grain-dst)" opacity="0.5"/>
+  <rect width="1600" height="900" fill="none"/>
+  <radialGradient id="vig-dst" cx="0.5" cy="0.5" r="0.75">
+    <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+    <stop offset="1" stop-color="#000" stop-opacity="0.62"/>
+  </radialGradient>
+  <rect width="1600" height="900" fill="url(#vig-dst)"/>
+</svg>

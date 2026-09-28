@@ -4,7 +4,10 @@ import { CATEGORIES } from '../data/categories';
 
 export function stationsForCategory(category: CategoryId): Station[] {
   if (category === 'mix') return FEATURED_STATIONS;
-  return STATIONS.filter((s) => s.category === category);
+  // Home category first, then stations that also belong via `secondaryCategories`.
+  return STATIONS.filter(
+    (s) => s.category === category || (s.secondaryCategories?.includes(category) ?? false),
+  );
 }
 
 export function findStation(id: string | null | undefined): Station | undefined {
@@ -37,6 +40,7 @@ function haystack(station: Station): string {
       station.name,
       station.description,
       categoryLabel(station.category),
+      ...(station.secondaryCategories ?? []).map(categoryLabel),
       station.region ?? '',
       station.era ?? '',
       ...(station.language ?? []),
@@ -58,7 +62,8 @@ export function searchStations(query: string, limit = 12): Station[] {
     if (name.startsWith(q)) score += 100;
     else if (name.includes(q)) score += 60;
     if (name === q) score += 80;
-    score += Math.min(station.heat ?? 0, 100) / 100;
+    if (station.featured) score += 5;
+    score += Math.max(0, 4 - (station.sortOrder ?? 0) / 8);
     return { station, score };
   })
     .filter((entry): entry is { station: Station; score: number } => entry !== null)

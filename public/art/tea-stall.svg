@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" preserveAspectRatio="xMidYMid slice">
+  
+  <defs>
+    <linearGradient id="sky-tea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2A0E0E"/>
+      <stop offset="0.4" stop-color="#4B1717"/>
+      <stop offset="0.6" stop-color="#A94A38"/>
+      <stop offset="1" stop-color="#0B0807"/>
+    </linearGradient>
+    <radialGradient id="glow-tea" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#D7A451" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#D7A451" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="fade-tea" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0B0807" stop-opacity="0.88"/>
+      <stop offset="0.42" stop-color="#0B0807" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#0B0807" stop-opacity="0.05"/>
+    </linearGradient>
+    <filter id="grain-tea" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.16"/></feComponentTransfer>
+    </filter>
+    <filter id="soft-tea"><feGaussianBlur stdDeviation="7"/></filter>
+    <filter id="soft2-tea"><feGaussianBlur stdDeviation="16"/></filter>
+  </defs>
+  <rect width="1600" height="900" fill="url(#sky-tea)"/>
+  
+    <ellipse cx="1180" cy="470" rx="230" ry="150" fill="url(#glow-tea)"/>
+    <path d="M880 250 Q 1220 310 1560 250" stroke="#0B0807" stroke-width="4" fill="none"/><circle cx="880" cy="264" r="7" fill="#D7A451"/>
+      <circle cx="880" cy="264" r="17" fill="#D7A451" opacity="0.28" filter="url(#soft-tea)"/><circle cx="955.6" cy="275.9" r="7" fill="#A94A38"/>
+      <circle cx="955.6" cy="275.9" r="17" fill="#A94A38" opacity="0.28" filter="url(#soft-tea)"/><circle cx="1031.1" cy="284.7" r="7" fill="#F0D8A6"/>
+      <circle cx="1031.1" cy="284.7" r="17" fill="#F0D8A6" opacity="0.28" filter="url(#soft-tea)"/><circle cx="1106.7" cy="290.7" r="7" fill="#D7A451"/>
+      <circle cx="1106.7" cy="290.7" r="17" fill="#D7A451" opacity="0.28" filter="url(#soft-tea)"/><circle cx="1182.2" cy="293.6" r="7" fill="#A94A38"/>
+      <circle cx="1182.2" cy="293.6" r="17" fill="#A94A38" opacity="0.28" filter="url(#soft-tea)"/><circle cx="1257.8" cy="293.6" r="7" fill="#F0D8A6"/>
+      <circle cx="1257.8" cy="293.6" r="17" fill="#F0D8A6" opacity="0.28" filter="url(#soft-tea)"/><circle cx="1333.3" cy="290.7" r="7" fill="#D7A451"/>
+      <circle cx="1333.3" cy="290.7" r="17" fill="#D7A451" opacity="0.28" filter="url(#soft-tea)"/><circle cx="1408.9" cy="284.7" r="7" fill="#A94A38"/>
+      <circle cx="1408.9" cy="284.7" r="17" fill="#A94A38" opacity="0.28" filter="url(#soft-tea)"/><circle cx="1484.4" cy="275.9" r="7" fill="#F0D8A6"/>
+      <circle cx="1484.4" cy="275.9" r="17" fill="#F0D8A6" opacity="0.28" filter="url(#soft-tea)"/><circle cx="1560" cy="264" r="7" fill="#D7A451"/>
+      <circle cx="1560" cy="264" r="17" fill="#D7A451" opacity="0.28" filter="url(#soft-tea)"/>
+    <rect x="960" y="470" width="560" height="30" rx="6" fill="#0B0807"/>
+    <rect x="985" y="330" width="24" height="145" fill="#0B0807"/>
+    <rect x="1470" y="330" width="24" height="145" fill="#0B0807"/>
+    <rect x="960" y="320" width="560" height="18" rx="6" fill="#1D1511"/>
+    <path d="M1040 470 h120 v-52 a40 40 0 0 0-40-40 h-40 a40 40 0 0 0-40 40 z" fill="#1D1511"/>
+    <path d="M1160 396 q46 6 34 44 q-8 26-44 20" fill="none" stroke="#1D1511" stroke-width="12"/>
+    <path d="M1075 372 q16-34-6-62 M1115 372 q18-40-8-70" stroke="#F4EBDD" stroke-width="7" fill="none" opacity="0.35" filter="url(#soft-tea)"/>
+    <circle cx="1330" cy="430" r="18" fill="#D7A451"/>
+    <circle cx="1420" cy="430" r="18" fill="#D7A451"/>
+    <path d="M1240 470 q40-120 96-120 q60 0 96 120 z" fill="#0B0807" opacity="0.9"/>
+    <circle cx="1336" cy="330" r="34" fill="#0B0807" opacity="0.9"/>
+    <path d="M0 700 h1600 v200 H0 z" fill="#0B0807"/>
+    <path d="M0 700 q420-38 860-6 q360 26 740-14 v220 H0 z" fill="#070404"/>
+    <rect x="140" y="560" width="360" height="22" rx="8" fill="#0B0807" opacity="0.85"/>
+    <rect x="176" y="582" width="18" height="120" fill="#0B0807" opacity="0.85"/>
+    <rect x="456" y="582" width="18" height="120" fill="#0B0807" opacity="0.85"/>
+    <circle cx="270" cy="520" r="46" fill="#0B0807" opacity="0.85"/>
+    <rect x="240" y="556" width="66" height="60" rx="18" fill="#0B0807" opacity="0.85"/>
+  <rect width="1600" height="900" fill="url(#fade-tea)"/>
+  <rect width="1600" height="900" filter="url(#grain-tea)" opacity="0.5"/>
+  <rect width="1600" height="900" fill="none"/>
+  <radialGradient id="vig-tea" cx="0.5" cy="0.5" r="0.75">
+    <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+    <stop offset="1" stop-color="#000" stop-opacity="0.62"/>
+  </radialGradient>
+  <rect width="1600" height="900" fill="url(#vig-tea)"/>
+</svg>

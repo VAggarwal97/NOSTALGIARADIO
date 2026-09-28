@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" preserveAspectRatio="xMidYMid slice">
+  
+  <defs>
+    <linearGradient id="sky-hw" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2A0E0E"/>
+      <stop offset="0.4" stop-color="#4B1717"/>
+      <stop offset="0.6" stop-color="#A94A38"/>
+      <stop offset="1" stop-color="#0B0807"/>
+    </linearGradient>
+    <radialGradient id="glow-hw" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#D7A451" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#D7A451" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="fade-hw" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0B0807" stop-opacity="0.88"/>
+      <stop offset="0.42" stop-color="#0B0807" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#0B0807" stop-opacity="0.05"/>
+    </linearGradient>
+    <filter id="grain-hw" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.16"/></feComponentTransfer>
+    </filter>
+    <filter id="soft-hw"><feGaussianBlur stdDeviation="7"/></filter>
+    <filter id="soft2-hw"><feGaussianBlur stdDeviation="16"/></filter>
+  </defs>
+  <rect width="1600" height="900" fill="url(#sky-hw)"/>
+  
+    <circle cx="1240" cy="430" r="86" fill="#F0D8A6" opacity="0.9"/>
+    <circle cx="1240" cy="430" r="170" fill="url(#glow-hw)"/>
+    <path d="M0 520 L260 470 L520 512 L820 452 L1120 505 L1600 460 L1600 620 L0 620 Z" fill="#2A0E0E" opacity="0.75"/>
+    <path d="M0 590 L340 545 L700 585 L1060 540 L1600 580 L1600 660 L0 660 Z" fill="#0B0807" opacity="0.85"/>
+    <path d="M760 620 L1600 620 L1600 900 L180 900 Z" fill="#0E0705"/>
+    <path d="M980 640 L1080 640 L1420 900 L1220 900 Z" fill="#D7A451" opacity="0.22"/>
+    <g fill="#D7A451" opacity="0.8">
+      <rect x="1140" y="690" width="150" height="16" rx="8"/>
+      <rect x="1240" y="750" width="220" height="20" rx="10"/>
+      <rect x="1330" y="830" width="300" height="26" rx="13"/>
+    </g>
+    <g fill="#0B0807">
+      <rect x="620" y="300" width="14" height="330"/>
+      <path d="M620 316 h150 l-24 40 h-126 z"/>
+      <rect x="300" y="380" width="10" height="250"/>
+      <path d="M300 392 h110 l-18 32 H300 z"/>
+    </g>
+    <g transform="translate(360 470)">
+      <rect x="0" y="40" width="300" height="150" rx="14" fill="#0B0807"/>
+      <rect x="212" y="76" width="82" height="66" rx="8" fill="#4B1717"/>
+      <rect x="18" y="70" width="150" height="70" rx="8" fill="#A94A38" opacity="0.75"/>
+      <circle cx="70" cy="196" r="34" fill="#0A0505"/>
+      <circle cx="236" cy="196" r="34" fill="#0A0505"/>
+      <circle cx="70" cy="196" r="12" fill="#1D1511"/>
+      <circle cx="236" cy="196" r="12" fill="#1D1511"/>
+      <rect x="300" y="150" width="26" height="20" rx="6" fill="#D7A451"/>
+    </g>
+    <path d="M0 860 h1600 v40 H0 z" fill="#070404" opacity="0.7"/>
+  <rect width="1600" height="900" fill="url(#fade-hw)"/>
+  <rect width="1600" height="900" filter="url(#grain-hw)" opacity="0.5"/>
+  <rect width="1600" height="900" fill="none"/>
+  <radialGradient id="vig-hw" cx="0.5" cy="0.5" r="0.75">
+    <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+    <stop offset="1" stop-color="#000" stop-opacity="0.62"/>
+  </radialGradient>
+  <rect width="1600" height="900" fill="url(#vig-hw)"/>
+</svg>

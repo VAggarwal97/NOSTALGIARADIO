@@ -1,49 +1,49 @@
 /* ───────────────────────────────────────────────────────────────────────────
    Nostalgia Radio — design tokens
-   Modern underneath, nostalgic on top.
+   Warm dark canvas · editorial serif · cinematic restraint
    ─────────────────────────────────────────────────────────────────────────── */
 
 :root {
   color-scheme: dark;
 
   /* Surfaces */
-  --bg: #0b0b0c;
-  --bg-deep: #070708;
-  --surface: #121214;
-  --card: #1a1a1d;
-  --card-hover: #202024;
-  --raised: #26262b;
+  --bg: #0b0807;
+  --bg-deep: #070404;
+  --surface: #15100d;
+  --elevated: #1d1511;
+  --glass: rgba(21, 16, 13, 0.72);
 
   /* Ink */
-  --text: #f4ebdd;
-  --text-dim: #a9a39a;
-  --text-faint: #6f6a63;
+  --ivory: #f4ebdd;
+  --cream: #cdbda8;
+  --muted: #9b8b7a;
 
   /* Accents */
-  --accent: #b83a32;
-  --accent-soft: #d1584f;
-  --brass: #d4a85a;
-  --brass-dim: #a8813f;
-  --live: #5fbf7a;
-  --danger: #e0736a;
+  --amber: #d7a451;
+  --amber-soft: #f0d8a6;
+  --terracotta: #a94a38;
+  --wine: #4b1717;
+  --live: #62d49b;
+  --danger: #e08a76;
 
   /* Lines */
-  --border: #333236;
-  --border-strong: #45444a;
+  --border: #3a2a20;
+  --border-strong: #55402f;
 
   /* Type */
-  --font-display: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman',
-    serif;
-  --font-sans: 'Helvetica Neue', Helvetica, 'Segoe UI', Arial, sans-serif;
-  --font-mono: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Menlo, Consolas, monospace;
+  --font-display: 'Cormorant Garamond', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Inter', 'Helvetica Neue', 'Segoe UI', Arial, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 
-  --size-brand: clamp(1.4rem, 1rem + 1.4vw, 2.1rem);
-  --size-hero: clamp(2.1rem, 1.2rem + 3.6vw, 4rem);
-  --size-station: clamp(1.35rem, 1rem + 1.4vw, 2rem);
-  --size-body: 0.875rem;
-  --size-small: 0.8125rem;
-  --size-label: 0.6875rem;
-  --size-micro: 0.625rem;
+  --size-brand: clamp(1.5rem, 1.1rem + 0.9vw, 2.25rem); /* 24–36px */
+  --size-hero: clamp(2.5rem, 1.4rem + 4.6vw, 6rem); /* 40–96px */
+  --size-heading: clamp(1.35rem, 1.1rem + 0.9vw, 1.9rem);
+  --size-body: 1rem; /* 16px */
+  --size-lead: clamp(1rem, 0.95rem + 0.3vw, 1.25rem); /* 16–20px */
+  --size-nav: 0.75rem; /* 12px */
+  --size-meta: 0.78rem; /* ~12.5px */
+  --size-card-title: 1.0625rem; /* 17px */
+  --size-card-body: 0.8125rem; /* 13px */
 
   /* Space */
   --space-1: 0.25rem;
@@ -53,42 +53,26 @@
   --space-5: 1.5rem;
   --space-6: 2rem;
   --space-7: 3rem;
+  --space-8: clamp(2.5rem, 5vw, 5rem);
 
-  /* Radius */
-  --radius-sm: 8px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
+  /* Radius — large surfaces 18–28px, small controls 10–16px */
+  --radius-sm: 12px;
+  --radius-md: 18px;
+  --radius-lg: 26px;
   --radius-pill: 999px;
 
+  /* Content width */
+  --content: 1320px;
+
   /* Elevation */
-  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 12px 30px rgba(0, 0, 0, 0.45);
-  --shadow-lift: 0 2px 0 rgba(255, 255, 255, 0.05) inset, 0 22px 46px rgba(0, 0, 0, 0.55);
-  --glow-live: 0 0 18px rgba(184, 58, 50, 0.55);
+  --shadow-card: 0 14px 34px rgba(0, 0, 0, 0.45);
+  --shadow-lift: 0 24px 54px rgba(0, 0, 0, 0.6);
+  --shadow-player: 0 18px 46px rgba(0, 0, 0, 0.62);
 
-  /* Motion */
+  /* Motion — UI 180–300ms, hero crossfade 500–900ms, cards 150–220ms */
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
-  --dur-fast: 140ms;
-  --dur: 220ms;
-  --dur-slow: 420ms;
-
-  /* Layout */
-  --header-h: 64px;
-  --player-h: 76px;
-}
-
-/* Warm variant — P2 theme toggle. Same contrast intent, aged-paper temperature. */
-:root[data-theme='warm'] {
-  --bg: #14100d;
-  --bg-deep: #0e0b09;
-  --surface: #1b1613;
-  --card: #221b17;
-  --card-hover: #2a221d;
-  --raised: #302620;
-  --text: #f7eeda;
-  --text-dim: #b7a98f;
-  --text-faint: #7d7059;
-  --border: #3a3129;
-  --border-strong: #4d4136;
-  --accent: #c2453a;
-  --brass: #e0b467;
+  --dur-fast: 180ms;
+  --dur: 260ms;
+  --dur-hero: 700ms;
+  --dur-sheet: 300ms;
 }

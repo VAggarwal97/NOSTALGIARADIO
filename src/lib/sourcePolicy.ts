@@ -13,19 +13,20 @@ export type SourceDecision =
  */
 export function decideSource(station: Station): SourceDecision {
   const primary = station.url?.trim() ?? '';
+  const unverified = station.status === 'offline' || station.status === 'unknown';
 
   if (station.action === 'play') {
     const audio = station.audioUrl?.trim() ?? '';
     if (!audio) return { kind: 'open', url: primary };
     if (!isSafeUrl(audio)) return { kind: 'blocked', reason: 'Audio URL failed validation.' };
-    if (station.availability === 'unavailable') {
+    if (unverified) {
       return { kind: 'check', url: primary };
     }
     return { kind: 'play', audioUrl: audio };
   }
 
   if (!isSafeUrl(primary)) return { kind: 'blocked', reason: 'Source URL failed validation.' };
-  if (station.availability === 'unavailable' || station.availability === 'unknown') {
+  if (unverified) {
     return { kind: 'check', url: primary };
   }
   return { kind: 'open', url: primary };

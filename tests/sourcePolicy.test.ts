@@ -7,6 +7,7 @@ const base: Station = {
   name: 'Sample',
   category: 'ambient',
   description: 'A sample station.',
+  artwork: '/art/cafe.svg',
   url: 'https://example.org/sample',
   action: 'check',
   sourceType: 'external-site',
@@ -27,8 +28,14 @@ describe('decideSource', () => {
     expect(audioUrlFor(playable)).toBe('/audio/demo-a.wav');
   });
 
-  it('never plays an unavailable station', () => {
-    const station: Station = { ...playable, availability: 'unavailable' };
+  it('never plays an offline station', () => {
+    const station: Station = { ...playable, status: 'offline' };
+    expect(decideSource(station).kind).toBe('check');
+    expect(audioUrlFor(station)).toBeNull();
+  });
+
+  it('treats an unverified station as a check, not a play', () => {
+    const station: Station = { ...playable, status: 'unknown' };
     expect(decideSource(station).kind).toBe('check');
     expect(audioUrlFor(station)).toBeNull();
   });
@@ -46,8 +53,8 @@ describe('decideSource', () => {
   });
 
   it('routes check-only stations to their source page', () => {
-    expect(decideSource({ ...base, availability: 'unavailable' }).kind).toBe('check');
-    expect(decideSource({ ...base, availability: 'unknown' }).kind).toBe('check');
+    expect(decideSource({ ...base, status: 'offline' }).kind).toBe('check');
+    expect(decideSource({ ...base, status: 'unknown' }).kind).toBe('check');
     expect(decideSource(base).kind).toBe('open');
   });
 
@@ -58,7 +65,7 @@ describe('decideSource', () => {
   it('labels each decision for the UI', () => {
     expect(labelForDecision(decideSource(playable))).toBe('Play');
     expect(labelForDecision(decideSource(base))).toBe('Enter Station');
-    expect(labelForDecision(decideSource({ ...base, availability: 'unavailable' }))).toBe(
+    expect(labelForDecision(decideSource({ ...base, status: 'offline' }))).toBe(
       'Check Station',
     );
     expect(labelForDecision(decideSource({ ...base, url: 'javascript:alert(1)' }))).toBe(

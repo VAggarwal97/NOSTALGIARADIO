@@ -1,25 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { CATEGORIES, CATEGORY_MAP, isCategoryId } from '../data/categories';
+import { EDITORIAL_MOMENTS } from '../data/editorial';
+import { FEATURED_STATIONS, STATIONS } from '../data/stations';
 import type { CategoryId, Station } from '../types/station';
 
-import { findStation, neighbours, randomStation, stationsForCategory } from '../lib/catalog';
+import { findStation, randomStation, stationsForCategory } from '../lib/catalog';
 import { audioUrlFor, decideSource, navigateSource } from '../lib/sourcePolicy';
 import { shareStation } from '../lib/share';
 
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import { useFavorites } from '../hooks/useFavorites';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
-import { useTheme } from '../hooks/useTheme';
 
-import { Header } from '../components/Header';
-import { CategoryRail } from '../components/CategoryRail';
-import { HeroStation } from '../components/HeroStation';
-import { NowPlaying } from '../components/NowPlaying';
+import { TopNav } from '../components/TopNav';
+import { CategoryNav } from '../components/CategoryNav';
+import { CinematicHero } from '../components/CinematicHero';
+import type { PlayerState } from '../components/CinematicHero';
+import { FloatingPlayer } from '../components/FloatingPlayer';
 import { StationRail } from '../components/StationRail';
-import { PlayerBar } from '../components/PlayerBar';
-import { SearchDialog } from '../components/SearchDialog';
-import { StationDrawer } from '../components/StationDrawer';
+import { EditorialMoment } from '../components/EditorialMoment';
+import { SiteFooter } from '../components/SiteFooter';
+import { SearchOverlay } from '../components/SearchOverlay';
+import { StationInfoModal } from '../components/StationInfoModal';
 import { Toast } from '../components/Toast';
 
 const queryParam = (name: string): string | null =>
@@ -28,8 +31,6 @@ const queryParam = (name: string): string | null =>
     : new URLSearchParams(window.location.search).get(name);
 
 export default function App() {
-  const [theme, toggleTheme] = useTheme();
-
   const [category, setCategory] = useState<CategoryId>(() => {
     const fromUrl = queryParam('category');
     if (fromUrl && isCategoryId(fromUrl)) return fromUrl;
@@ -38,24 +39,44 @@ export default function App() {
   });
 
   const [selected, setSelected] = useState<Station | null>(
-    () => findStation(queryParam('station')) ?? stationsForCategory('mix')[0] ?? null,
+    () => findStation(queryParam('station')) ?? FEATURED_STATIONS[0] ?? STATIONS[0] ?? null,
   );
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [favoritesOpen, setFavoritesOpen] = useState(false);
-  const [drawerStation, setDrawerStation] = useState<Station | null>(null);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [playerExpanded, setPlayerExpanded] = useState(false);
+  const [compact, setCompact] = useState(false);
+  const [browserOnline, setBrowserOnline] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
 
   const favorites = useFavorites();
   const toastTimer = useRef<number | null>(null);
 
-  const pool = useMemo(() => stationsForCategory(category), [category]);
+  // Sticky header tightens after the first scroll — same shell, smaller footprint.
+  useEffect(() => {
+    const onScroll = () => setCompact(window.scrollY > 48);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    const update = () => setBrowserOnline(navigator.onLine !== false);
+    update();
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => {
+      window.removeEventListener('online', update);
+      window.removeEventListener('offline', update);
+    };
+  }, []);
 
   const notify = useCallback((message: string) => {
     setToast(message);
     if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToast(null), 2600);
+    toastTimer.current = window.setTimeout(() => setToast(null), 2800);
   }, []);
 
   useEffect(
@@ -65,14 +86,16 @@ export default function App() {
     [],
   );
 
-  // The player hook keeps `onEnded` in a ref, so a stable trampoline is enough to
-  // reach the latest `advance` without re-creating the audio element.
+  // The player hook keeps `onEnded` in a ref, so a stable trampoline reaches the
+  // latest `advance` without re-creating the audio element.
+  const stepRef = useRef<(direction: 1 | -1) => void>(() => {});
   const advanceRef = useRef<(direction: 1 | -1) => void>(() => {});
   const player = useAudioPlayer({ onEnded: () => advanceRef.current(1) });
   const playerRef = useRef(player);
   playerRef.current = player;
 
-  /** Select + persist deep link. Autoplay is opt-in and only from a user gesture. */
+  const pool = useMemo(() => stationsForCategory(category), [category]);
+
   const goTo = useCallback((station: Station, autoplay = false) => {
     setSelected(station);
     setAnnouncement(`${station.name}. ${station.description}`);
@@ -83,7 +106,7 @@ export default function App() {
       url.searchParams.set('category', station.category);
       window.history.replaceState({}, '', url);
     } catch {
-      /* file:// or sandboxed context — deep links are a convenience, not a requirement */
+      /* file:// or sandboxed context — deep links are a convenience */
     }
 
     if (autoplay) {
@@ -95,7 +118,6 @@ export default function App() {
     }
   }, []);
 
-  /** Always begin playback of a playable station; otherwise hand off to the source. */
   const startStation = useCallback(
     async (station: Station) => {
       const audioUrl = audioUrlFor(station);
@@ -110,7 +132,6 @@ export default function App() {
     [notify],
   );
 
-  /** Player-bar play button: start, resume, pause, or hand off to the source. */
   const togglePlay = useCallback(async () => {
     const station = selected;
     if (!station) return;
@@ -125,11 +146,18 @@ export default function App() {
     else await startStation(station);
   }, [selected, startStation, notify]);
 
-  const advance = useCallback(
+  const step = useCallback(
     (direction: 1 | -1) => {
-      const list = pool.length > 0 ? pool : stationsForCategory('mix');
-      const { next, previous } = neighbours(selected, list);
-      const target = direction === 1 ? next : previous;
+      const list = pool.length > 0 ? pool : STATIONS;
+      const index = selected ? list.findIndex((s) => s.id === selected.id) : -1;
+      if (list.length === 0) return;
+      const nextIndex =
+        index === -1
+          ? direction === 1
+            ? 0
+            : list.length - 1
+          : (index + direction + list.length) % list.length;
+      const target = list[nextIndex];
       if (!target) return;
       const shouldAutoplay = playerRef.current.status === 'playing';
       goTo(target, shouldAutoplay);
@@ -137,7 +165,8 @@ export default function App() {
     [pool, selected, goTo],
   );
 
-  advanceRef.current = advance;
+  stepRef.current = step;
+  advanceRef.current = step;
 
   const handleSelect = useCallback(
     (station: Station) => {
@@ -201,25 +230,37 @@ export default function App() {
     notify(`Surprise: ${station.name}`);
   }, [selected, goTo, notify]);
 
-  const closeOverlays = useCallback(() => {
-    setSearchOpen(false);
-    setFavoritesOpen(false);
-    setDrawerStation(null);
-  }, []);
-
   const openSearch = useCallback(() => {
     setFavoritesOpen(false);
     setSearchOpen(true);
+  }, []);
+
+  const closeOverlays = useCallback(() => {
+    setSearchOpen(false);
+    setFavoritesOpen(false);
+    setInfoOpen(false);
   }, []);
 
   const isCurrentTrack = Boolean(selected && player.stationId === selected.id);
   const canPlay = Boolean(selected && decideSource(selected).kind === 'play');
   const playingId = player.status === 'playing' ? player.stationId : null;
 
+  const playerState: PlayerState = !browserOnline
+    ? 'offline'
+    : player.status === 'error'
+      ? 'error'
+      : player.status === 'loading'
+        ? 'buffering'
+        : player.status === 'playing'
+          ? 'playing'
+          : player.status === 'paused'
+            ? 'paused'
+            : 'ready';
+
   useKeyboardShortcuts({
     togglePlay: () => void togglePlay(),
-    previous: () => advance(-1),
-    next: () => advance(1),
+    previous: () => stepRef.current(-1),
+    next: () => stepRef.current(1),
     toggleMute: player.toggleMute,
     openSearch,
     toggleFavorite: () => toggleFavorite(selected),
@@ -230,84 +271,95 @@ export default function App() {
     volumeDown: () => player.setVolume(player.volume - 0.1),
   });
 
-  const activeCategory = CATEGORY_MAP[category];
-  const railTitle = category === 'mix' ? 'Featured picks' : (activeCategory?.label ?? 'Stations');
-  const railHint =
-    category === 'mix' ? 'One from every corner · press / to search' : (activeCategory?.tagline ?? '');
+  const categoryMeta = CATEGORY_MAP[category];
+  const isMix = category === 'mix';
+  const collection = isMix ? STATIONS : pool;
+  const featured = FEATURED_STATIONS;
+
+  const railTitle = isMix ? 'The whole archive' : (categoryMeta?.label ?? 'Stations');
+  const railNote = isMix ? `${STATIONS.length} stations` : categoryMeta?.tagline;
 
   return (
-    <div className="app grain">
-      <Header
-        rail={<CategoryRail active={category} onSelect={setCategory} />}
+    <div className="shell grain">
+      <TopNav
+        nav={<CategoryNav active={category} onSelect={setCategory} />}
+        compact={compact}
         favoriteCount={favorites.count}
-        theme={theme}
         onOpenSearch={openSearch}
         onOpenFavorites={() => {
           setSearchOpen(false);
           setFavoritesOpen(true);
         }}
         onSurprise={surprise}
-        onToggleTheme={toggleTheme}
       />
 
-      <main className="main">
-        <HeroStation
+      <main>
+        <CinematicHero
           station={selected}
-          isFavorite={selected ? favorites.has(selected.id) : false}
-          status={player.status}
+          playerState={playerState}
           isCurrentTrack={isCurrentTrack}
-          analyser={player.analyser}
-          onTogglePlay={() => void togglePlay()}
-          onOpenSource={openSource}
-          onToggleFavorite={toggleFavorite}
-          onShare={(station) => void share(station)}
-          onDetails={(station) => setDrawerStation(station)}
+          onPrimary={() => void togglePlay()}
+          onShare={() => void share(selected)}
+          onInfo={() => setInfoOpen(true)}
         />
 
-        <NowPlaying
-          station={selected}
-          status={player.status}
-          isCurrentTrack={isCurrentTrack}
-          currentTime={player.currentTime}
-          duration={player.duration}
-          error={player.error}
-          onSeek={player.seek}
-          onOpenSource={openSource}
-        />
+        <div className="page">
+          <StationRail
+            id="featured"
+            title="Featured picks"
+            note="One from every corner"
+            stations={featured}
+            selectedId={selected?.id ?? null}
+            playingId={playingId}
+            emptyMessage="No featured stations yet."
+            onSelect={handleSelect}
+            onPrimary={handlePrimary}
+          />
 
-        <StationRail
-          stations={pool}
-          selectedId={selected?.id ?? null}
-          playingId={playingId}
-          favoriteIds={favorites.ids}
-          title={railTitle}
-          hint={railHint}
-          emptyMessage={
-            category === 'mix'
-              ? 'No featured stations yet — pick a category above.'
-              : 'Nothing in this category yet. Try another one.'
-          }
-          onSelect={handleSelect}
-          onPrimary={handlePrimary}
-        />
+          <EditorialMoment moment={EDITORIAL_MOMENTS.tonights} />
+
+          <StationRail
+            id="collection"
+            key={category}
+            title={railTitle}
+            note={railNote}
+            stations={collection}
+            selectedId={selected?.id ?? null}
+            playingId={playingId}
+            emptyMessage="Nothing in this category yet — try another one above."
+            onSelect={handleSelect}
+            onPrimary={handlePrimary}
+          />
+
+          <EditorialMoment
+            moment={EDITORIAL_MOMENTS[category] ?? EDITORIAL_MOMENTS.default}
+          />
+        </div>
       </main>
 
-      <PlayerBar
+      <SiteFooter onOpenSearch={openSearch} />
+
+      <FloatingPlayer
         station={selected}
-        status={player.status}
+        playerState={playerState}
         isCurrentTrack={isCurrentTrack}
+        currentTime={player.currentTime}
+        duration={player.duration}
         volume={player.volume}
         muted={player.muted}
         canPlay={canPlay}
-        onPrevious={() => advance(-1)}
-        onNext={() => advance(1)}
+        expanded={playerExpanded}
+        onToggleExpand={() => setPlayerExpanded((value) => !value)}
+        onPrevious={() => stepRef.current(-1)}
+        onNext={() => stepRef.current(1)}
         onTogglePlay={() => void togglePlay()}
         onVolume={player.setVolume}
         onToggleMute={player.toggleMute}
-        onOpenSearch={openSearch}
+        onSeek={player.seek}
+        onOpenSource={openSource}
       />
 
-      <SearchDialog
+      <SearchOverlay
         open={searchOpen}
         showFavorites={false}
         favorites={favorites.stations}
@@ -319,7 +371,7 @@ export default function App() {
         onSurprise={surprise}
       />
 
-      <SearchDialog
+      <SearchOverlay
         open={favoritesOpen}
         showFavorites
         favorites={favorites.stations}
@@ -331,10 +383,10 @@ export default function App() {
         onSurprise={surprise}
       />
 
-      <StationDrawer
-        station={drawerStation}
-        isFavorite={drawerStation ? favorites.has(drawerStation.id) : false}
-        onClose={() => setDrawerStation(null)}
+      <StationInfoModal
+        station={infoOpen ? selected : null}
+        isFavorite={selected ? favorites.has(selected.id) : false}
+        onClose={() => setInfoOpen(false)}
         onToggleFavorite={toggleFavorite}
         onShare={(station) => void share(station)}
         onOpenSource={openSource}
@@ -349,7 +401,6 @@ export default function App() {
       <div className="visually-hidden">
         Categories: {CATEGORIES.map((entry) => entry.label).join(', ')}
       </div>
-
     </div>
   );
 }

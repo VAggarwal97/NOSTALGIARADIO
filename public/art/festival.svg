@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" preserveAspectRatio="xMidYMid slice">
+  
+  <defs>
+    <linearGradient id="sky-fest" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2A0E0E"/>
+      <stop offset="0.4" stop-color="#4B1717"/>
+      <stop offset="0.6" stop-color="#A94A38"/>
+      <stop offset="1" stop-color="#0B0807"/>
+    </linearGradient>
+    <radialGradient id="glow-fest" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#D7A451" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#D7A451" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="fade-fest" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0B0807" stop-opacity="0.88"/>
+      <stop offset="0.42" stop-color="#0B0807" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#0B0807" stop-opacity="0.05"/>
+    </linearGradient>
+    <filter id="grain-fest" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.16"/></feComponentTransfer>
+    </filter>
+    <filter id="soft-fest"><feGaussianBlur stdDeviation="7"/></filter>
+    <filter id="soft2-fest"><feGaussianBlur stdDeviation="16"/></filter>
+  </defs>
+  <rect width="1600" height="900" fill="url(#sky-fest)"/>
+  
+    <circle cx="820" cy="330" r="120" fill="url(#glow-fest)"/>
+    <path d="M60 190 Q 420 260 780 190" stroke="#0B0807" stroke-width="4" fill="none"/><circle cx="60" cy="204" r="7" fill="#D7A451"/>
+      <circle cx="60" cy="204" r="17" fill="#D7A451" opacity="0.28" filter="url(#soft-fest)"/><circle cx="150" cy="219.3" r="7" fill="#A94A38"/>
+      <circle cx="150" cy="219.3" r="17" fill="#A94A38" opacity="0.28" filter="url(#soft-fest)"/><circle cx="240" cy="230.3" r="7" fill="#F0D8A6"/>
+      <circle cx="240" cy="230.3" r="17" fill="#F0D8A6" opacity="0.28" filter="url(#soft-fest)"/><circle cx="330" cy="236.8" r="7" fill="#D7A451"/>
+      <circle cx="330" cy="236.8" r="17" fill="#D7A451" opacity="0.28" filter="url(#soft-fest)"/><circle cx="420" cy="239" r="7" fill="#A94A38"/>
+      <circle cx="420" cy="239" r="17" fill="#A94A38" opacity="0.28" filter="url(#soft-fest)"/><circle cx="510" cy="236.8" r="7" fill="#F0D8A6"/>
+      <circle cx="510" cy="236.8" r="17" fill="#F0D8A6" opacity="0.28" filter="url(#soft-fest)"/><circle cx="600" cy="230.3" r="7" fill="#D7A451"/>
+      <circle cx="600" cy="230.3" r="17" fill="#D7A451" opacity="0.28" filter="url(#soft-fest)"/><circle cx="690" cy="219.3" r="7" fill="#A94A38"/>
+      <circle cx="690" cy="219.3" r="17" fill="#A94A38" opacity="0.28" filter="url(#soft-fest)"/><circle cx="780" cy="204" r="7" fill="#F0D8A6"/>
+      <circle cx="780" cy="204" r="17" fill="#F0D8A6" opacity="0.28" filter="url(#soft-fest)"/>
+    <path d="M820 210 Q 1180 290 1540 210" stroke="#0B0807" stroke-width="4" fill="none"/><circle cx="820" cy="224" r="7" fill="#D7A451"/>
+      <circle cx="820" cy="224" r="17" fill="#D7A451" opacity="0.28" filter="url(#soft-fest)"/><circle cx="910" cy="241.5" r="7" fill="#A94A38"/>
+      <circle cx="910" cy="241.5" r="17" fill="#A94A38" opacity="0.28" filter="url(#soft-fest)"/><circle cx="1000" cy="254" r="7" fill="#F0D8A6"/>
+      <circle cx="1000" cy="254" r="17" fill="#F0D8A6" opacity="0.28" filter="url(#soft-fest)"/><circle cx="1090" cy="261.5" r="7" fill="#D7A451"/>
+      <circle cx="1090" cy="261.5" r="17" fill="#D7A451" opacity="0.28" filter="url(#soft-fest)"/><circle cx="1180" cy="264" r="7" fill="#A94A38"/>
+      <circle cx="1180" cy="264" r="17" fill="#A94A38" opacity="0.28" filter="url(#soft-fest)"/><circle cx="1270" cy="261.5" r="7" fill="#F0D8A6"/>
+      <circle cx="1270" cy="261.5" r="17" fill="#F0D8A6" opacity="0.28" filter="url(#soft-fest)"/><circle cx="1360" cy="254" r="7" fill="#D7A451"/>
+      <circle cx="1360" cy="254" r="17" fill="#D7A451" opacity="0.28" filter="url(#soft-fest)"/><circle cx="1450" cy="241.5" r="7" fill="#A94A38"/>
+      <circle cx="1450" cy="241.5" r="17" fill="#A94A38" opacity="0.28" filter="url(#soft-fest)"/><circle cx="1540" cy="224" r="7" fill="#F0D8A6"/>
+      <circle cx="1540" cy="224" r="17" fill="#F0D8A6" opacity="0.28" filter="url(#soft-fest)"/>
+    <g fill="#0B0807">
+      <path d="M640 660 h360 v-40 q0-90-60-140 h-240 q-60 50-60 140 z"/>
+      <rect x="700" y="660" width="240" height="40"/>
+      <path d="M760 480 q60-140 120 0 z"/>
+      <circle cx="820" cy="380" r="26"/>
+      <rect x="812" y="330" width="16" height="46"/>
+    </g>
+    <path d="M0 700 h1600 v200 H0 z" fill="#070404"/>
+    <g fill="#0B0807">
+      <path d="M180 700 q40-160 90-160 q52 0 92 160 z" opacity="0.9"/>
+      <circle cx="270" cy="512" r="38" opacity="0.9"/>
+      <path d="M1180 700 q46-190 104-190 q60 0 106 190 z" opacity="0.9"/>
+      <circle cx="1284" cy="478" r="42" opacity="0.9"/>
+      <path d="M1420 700 q36-130 82-130 q46 0 82 130 z" opacity="0.8"/>
+      <circle cx="1502" cy="542" r="32" opacity="0.8"/>
+    </g>
+    <g>
+      <path d="M140 700 q34-30 68 0 z" fill="#A94A38"/>
+            <ellipse cx="174" cy="676" rx="34" ry="14" fill="#D7A451" opacity="0.55" filter="url(#soft-fest)"/>
+            <path d="M174 664 q10-22 0-34 q-12 16 0 34" fill="#F0D8A6"/><path d="M330 700 q34-30 68 0 z" fill="#A94A38"/>
+            <ellipse cx="364" cy="676" rx="34" ry="14" fill="#D7A451" opacity="0.55" filter="url(#soft-fest)"/>
+            <path d="M364 664 q10-22 0-34 q-12 16 0 34" fill="#F0D8A6"/><path d="M520 700 q34-30 68 0 z" fill="#A94A38"/>
+            <ellipse cx="554" cy="676" rx="34" ry="14" fill="#D7A451" opacity="0.55" filter="url(#soft-fest)"/>
+            <path d="M554 664 q10-22 0-34 q-12 16 0 34" fill="#F0D8A6"/><path d="M1020 700 q34-30 68 0 z" fill="#A94A38"/>
+            <ellipse cx="1054" cy="676" rx="34" ry="14" fill="#D7A451" opacity="0.55" filter="url(#soft-fest)"/>
+            <path d="M1054 664 q10-22 0-34 q-12 16 0 34" fill="#F0D8A6"/><path d="M1240 700 q34-30 68 0 z" fill="#A94A38"/>
+            <ellipse cx="1274" cy="676" rx="34" ry="14" fill="#D7A451" opacity="0.55" filter="url(#soft-fest)"/>
+            <path d="M1274 664 q10-22 0-34 q-12 16 0 34" fill="#F0D8A6"/><path d="M1460 700 q34-30 68 0 z" fill="#A94A38"/>
+            <ellipse cx="1494" cy="676" rx="34" ry="14" fill="#D7A451" opacity="0.55" filter="url(#soft-fest)"/>
+            <path d="M1494 664 q10-22 0-34 q-12 16 0 34" fill="#F0D8A6"/>
+    </g>
+    <g fill="#D7A451" opacity="0.5">
+      <circle cx="480" cy="300" r="4"/><circle cx="560" cy="240" r="3"/>
+      <circle cx="980" cy="270" r="4"/><circle cx="1060" cy="330" r="3"/>
+      <circle cx="420" cy="420" r="3"/><circle cx="1120" cy="410" r="4"/>
+    </g>
+  <rect width="1600" height="900" fill="url(#fade-fest)"/>
+  <rect width="1600" height="900" filter="url(#grain-fest)" opacity="0.5"/>
+  <rect width="1600" height="900" fill="none"/>
+  <radialGradient id="vig-fest" cx="0.5" cy="0.5" r="0.75">
+    <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+    <stop offset="1" stop-color="#000" stop-opacity="0.62"/>
+  </radialGradient>
+  <rect width="1600" height="900" fill="url(#vig-fest)"/>
+</svg>

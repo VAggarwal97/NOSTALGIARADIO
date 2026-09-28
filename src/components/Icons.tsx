@@ -130,3 +130,21 @@ export const RadioIcon = (p: IconProps) => (
     <path d="M13.5 12.5H18M13.5 16.5H18" />
   </svg>
 );
+
+export const LoadingIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M12 4v4M12 16v4M4 12h4M16 12h4M6.3 6.3l2.9 2.9M14.8 14.8l2.9 2.9M17.7 6.3l-2.9 2.9M9.2 14.8l-2.9 2.9" />
+  </svg>
+);
+
+export const ChevronUpIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="m6 14 6-6 6 6" />
+  </svg>
+);
+
+export const ChevronDownIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="m6 10 6 6 6-6" />
+  </svg>
+);
