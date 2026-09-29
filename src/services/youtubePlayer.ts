@@ -7,6 +7,7 @@ const API_SRC = 'https://www.youtube.com/iframe_api';
 /** Minimal typings for the subset of the YouTube IFrame Player API we drive. */
 interface YTPlayerInstance {
   cuePlaylist(options: { list: string; listType: 'playlist'; index?: number; startSeconds?: number }): void;
+  cueVideoById(options: { videoId: string }): void;
   playVideo(): void;
   pauseVideo(): void;
   seekTo(seconds: number, seekAhead: boolean): void;
@@ -159,9 +160,11 @@ export function createYouTubeEngine(host: HTMLElement, events: EngineEvents): Pr
                 emitProgress();
                 break;
               case S.ENDED:
-                // The playlist simply finished — paused, never an error.
+                // A single request video ended, or the playlist rested at its
+                // end — paused (never an error), and the app picks what airs next.
                 events.onStatus('paused');
                 stopTimer();
+                events.onEnded?.();
                 break;
               default:
                 break;
@@ -187,7 +190,8 @@ export function createYouTubeEngine(host: HTMLElement, events: EngineEvents): Pr
       events.onProgress(0, 0);
       events.onTitle(null);
       exec(() => {
-        player?.cuePlaylist({ list: source.playlistId, listType: 'playlist' });
+        if (source.entity === 'video') player?.cueVideoById({ videoId: source.playlistId });
+        else player?.cuePlaylist({ list: source.playlistId, listType: 'playlist' });
         if (autoplay) player?.playVideo();
       });
     },

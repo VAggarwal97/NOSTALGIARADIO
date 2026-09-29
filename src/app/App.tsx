@@ -6,7 +6,16 @@ import { STATIONS } from '../data/stations';
 import type { CategoryId, Station } from '../types/station';
 
 import { findStation, randomStation, stationsForCategory } from '../lib/catalog';
-import { decideSource, isPlayableDecision, navigateSource } from '../lib/sourcePolicy';
+import {
+  decideSource,
+  embedSourceForRequest,
+  isPlayableDecision,
+  navigateSource,
+} from '../lib/sourcePolicy';
+import { fallsBackToStations, pickNextRequest, requestStationId, retireReason } from '../lib/queue';
+import type { QueueOrigin } from '../lib/queue';
+import { getRequestApi } from '../lib/request-api';
+import type { SongRequest } from '../lib/request-api';
 import { shareStation } from '../lib/share';
 import { stationAccent } from '../lib/hero';
 
@@ -66,6 +75,18 @@ export default function App() {
   const [route, setRoute] = useState<RouteName>(() =>
     typeof window === 'undefined' ? 'home' : routeFromPathname(window.location.pathname),
   );
+
+  // What the community queue currently has on air — the pill, hero and dock
+  // describe the request instead of pretending the station is playing.
+  const [activeRequest, setActiveRequestState] = useState<SongRequest | null>(null);
+  const activeRequestRef = useRef<SongRequest | null>(null);
+  /** Requests whose source failed this session — skipped, never retried in-page. */
+  const skipRef = useRef<Set<string>>(new Set());
+  const failuresRef = useRef(0);
+  const updateActiveRequest = useCallback((request: SongRequest | null) => {
+    activeRequestRef.current = request;
+    setActiveRequestState(request);
+  }, []);
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
@@ -135,39 +156,53 @@ export default function App() {
   );
 
   // The player hook keeps `onEnded` in a ref, so a stable trampoline reaches the
-  // latest `step` without re-creating the audio element.
+  // latest advance logic without re-creating the audio element.
   const stepRef = useRef<(direction: 1 | -1) => void>(() => {});
-  const advanceRef = useRef<(direction: 1 | -1) => void>(() => {});
-  const player = useRadioPlayer({ onEnded: () => advanceRef.current(1) });
+  const advanceRef = useRef<(origin: QueueOrigin) => void>(() => {});
+  // Both engines land here: at every boundary (sample track ended, request
+  // finished, playlist video changed) the community queue gets first refusal.
+  const player = useRadioPlayer({
+    onEnded: (origin) => advanceRef.current(origin ?? 'audio'),
+  });
   const playerRef = useRef(player);
   playerRef.current = player;
 
   const pool = useMemo(() => stationsForCategory(category), [category]);
 
-  const goTo = useCallback((station: Station, autoplay = false) => {
-    setSelected(station);
-    setAnnouncement(`${station.name}. ${station.description}`);
+  const goTo = useCallback(
+    (station: Station, autoplay = false) => {
+      setSelected(station);
+      setAnnouncement(`${station.name}. ${station.description}`);
 
-    try {
-      const url = new URL(window.location.href);
-      url.searchParams.set('station', station.id);
-      url.searchParams.set('category', station.category);
-      window.history.replaceState({}, '', url);
-    } catch {
-      /* file:// or sandboxed context — deep links are a convenience */
-    }
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('station', station.id);
+        url.searchParams.set('category', station.category);
+        window.history.replaceState({}, '', url);
+      } catch {
+        /* file:// or sandboxed context — deep links are a convenience */
+      }
 
-    if (autoplay) {
       const decision = decideSource(station);
-      if (isPlayableDecision(decision)) {
+      const playable = isPlayableDecision(decision);
+      if (autoplay && playable) {
         playerRef.current.load(station.id, decision);
         void playerRef.current.play();
+      } else if (activeRequestRef.current) {
+        // A community request was on air: replace it with the station — cued
+        // paused when nothing should autoplay, stopped when this source can't
+        // play here. The pill must never describe a request nobody loaded.
+        if (playable) playerRef.current.load(station.id, decision);
+        else playerRef.current.stop();
       }
-    }
-  }, []);
+      updateActiveRequest(null);
+    },
+    [updateActiveRequest],
+  );
 
   const startStation = useCallback(
     async (station: Station) => {
+      updateActiveRequest(null);
       const decision = decideSource(station);
       if (!isPlayableDecision(decision)) {
         notify('This station opens on its own page — nothing plays here.');
@@ -179,19 +214,25 @@ export default function App() {
       }
       await playerRef.current.play();
     },
-    [notify],
+    [notify, updateActiveRequest],
   );
 
   const togglePlay = useCallback(async () => {
     const station = selected;
     if (!station) return;
+    const current = playerRef.current;
+    const requestOnAir = activeRequestRef.current;
+    if (requestOnAir && current.stationId === requestStationId(requestOnAir.id)) {
+      // The request owns playback right now — pause it, don't restart the station.
+      await current.toggle();
+      return;
+    }
     const decision = decideSource(station);
     if (!isPlayableDecision(decision)) {
       notify('This station opens on its own page — nothing plays here.');
       navigateSource(station);
       return;
     }
-    const current = playerRef.current;
     if (current.stationId === station.id && current.isPlayable) await current.toggle();
     else await startStation(station);
   }, [selected, startStation, notify]);
@@ -231,8 +272,81 @@ export default function App() {
     [pool, selected, goTo],
   );
 
+  /** One request = one official provider embed, loaded like any other source. */
+  const playRequest = useCallback(
+    async (request: SongRequest): Promise<boolean> => {
+      const source = embedSourceForRequest(request);
+      if (!source) return false;
+      updateActiveRequest(request);
+      try {
+        playerRef.current.load(requestStationId(request.id), { kind: 'embed', source });
+        await playerRef.current.play();
+      } catch {
+        // Engine refused (blocked autoplay, dead iframe…) — let the error path skip it.
+        return false;
+      }
+      setAnnouncement(`Now playing ${request.title} by ${request.artist} — community request.`);
+      notify(`Now playing: ${request.title}`);
+      return true;
+    },
+    [notify, updateActiveRequest],
+  );
+
+  /**
+   * What airs at a boundary — a sample track ended, a request finished, or the
+   * listener pressed Next. The highest-voted open request goes first; when the
+   * queue is exhausted the station rotation resumes. The current song is never
+   * interrupted: this only ever runs from a boundary, never mid-track.
+   */
+  const advanceProgram = useCallback(
+    async (origin: QueueOrigin) => {
+      const api = getRequestApi();
+      const current = activeRequestRef.current;
+      if (current && retireReason(origin)) {
+        try {
+          await api.markPlayed(current.id); // it aired → history; it never replays
+        } catch {
+          // History failed — the request simply stays open for a later rotation.
+        }
+      }
+      if (current) updateActiveRequest(null);
+
+      let items: SongRequest[] | null = null;
+      try {
+        items = await api.board({ tab: 'wanted' });
+      } catch {
+        items = null; // offline or API trouble → plain station behaviour, never a stall
+      }
+      const next = items ? pickNextRequest(items, skipRef.current, current?.id ?? null) : null;
+      if (next && (await playRequest(next))) return;
+      if (!fallsBackToStations(origin)) return; // the provider playlist manages itself
+      failuresRef.current = 0;
+      step(1);
+    },
+    [playRequest, step, updateActiveRequest],
+  );
+
   stepRef.current = step;
-  advanceRef.current = step;
+  advanceRef.current = advanceProgram;
+
+  // A request whose source fails is skipped for this session — the next
+  // highest-voted one airs instead. Repeated failures end the queue cleanly.
+  useEffect(() => {
+    if (!activeRequest || player.status !== 'error') return;
+    skipRef.current.add(activeRequest.id);
+    updateActiveRequest(null);
+    failuresRef.current += 1;
+    if (failuresRef.current >= 3) {
+      failuresRef.current = 0;
+      step(1);
+      return;
+    }
+    void advanceProgram('error');
+  }, [activeRequest, player.status, advanceProgram, step, updateActiveRequest]);
+
+  useEffect(() => {
+    if (player.status === 'playing') failuresRef.current = 0;
+  }, [player.status]);
 
   /** ← → seek a track with real duration; otherwise they move between stations. */
   const stepOrSeek = useCallback((direction: 1 | -1) => {
@@ -339,7 +453,10 @@ export default function App() {
     volumeDown: () => volumeGuard(() => player.setVolume(player.volume - 0.1)),
   });
 
-  const isCurrentTrack = Boolean(selected && player.stationId === selected.id);
+  const requestOnAir = Boolean(
+    activeRequest && player.stationId === requestStationId(activeRequest.id),
+  );
+  const isCurrentTrack = Boolean(selected && player.stationId === selected.id) || requestOnAir;
   const canPlay = Boolean(selected && isPlayableDecision(decideSource(selected)));
 
   const playerState: PlayerState = !browserOnline
@@ -414,14 +531,17 @@ export default function App() {
       <FloatingPlayer
         station={playerStation}
         playerState={playerState}
-        isCurrentTrack={Boolean(playerStation && player.stationId === playerStation.id)}
+        isCurrentTrack={
+          Boolean(playerStation && player.stationId === playerStation.id) || requestOnAir
+        }
         currentTime={player.currentTime}
         duration={player.duration}
         volume={player.volume}
         muted={player.muted}
         canPlay={canPlay}
         provider={dockProvider}
-        trackTitle={player.trackTitle}
+        trackTitle={activeRequest ? activeRequest.title : player.trackTitle}
+        contextLabel={activeRequest ? 'Community request' : undefined}
         hasVolume={player.hasVolume}
         expanded={playerExpanded}
         minimized={playerMinimized}
@@ -429,7 +549,9 @@ export default function App() {
         onToggleExpand={() => setPlayerExpanded((value) => !value)}
         onToggleMinimize={() => setPlayerMinimized((value) => !value)}
         onPrevious={() => stepRef.current(-1)}
-        onNext={() => stepRef.current(1)}
+        onNext={() =>
+          activeRequestRef.current ? advanceRef.current('manual') : stepRef.current(1)
+        }
         onTogglePlay={() => void togglePlay()}
         onVolume={player.setVolume}
         onToggleMute={player.toggleMute}
@@ -442,7 +564,7 @@ export default function App() {
           manager={getPlayerManager()}
           provider={dockProvider}
           trackTitle={player.trackTitle}
-          stationName={playerStation.name}
+          stationName={activeRequest ? 'Community request' : playerStation.name}
         />
       ) : null}
 

@@ -1,11 +1,17 @@
 import type { Station } from '../types/station';
 import { classifyUrl, isSafeUrl, openExternally } from './urlSafety';
+import type { SongRequest } from './request-api';
 
 /** A validated official-playlist source the app can drive through its embed. */
 export interface EmbedSource {
   provider: 'youtube' | 'spotify';
   /** Provider-native playlist ID extracted from `playlistUrl`. */
   playlistId: string;
+  /**
+   * What the id addresses. Stations are playlists; community-queue requests
+   * are a single `video` (YouTube) or `track` (Spotify).
+   */
+  entity?: 'playlist' | 'video' | 'track';
   /** The validated playlist page URL — kept as the honest source link. */
   url: string;
 }
@@ -54,6 +60,27 @@ export function embedSourceFor(station: Station): EmbedSource | null {
   const match = parsed.pathname.match(SPOTIFY_PLAYLIST_PATH);
   if (!match?.[1] || PLACEHOLDER_ID.test(match[1])) return null;
   return { provider, playlistId: match[1], url: raw };
+}
+
+const YOUTUBE_VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
+const SPOTIFY_TRACK_ID = /^[A-Za-z0-9]{22}$/;
+
+/**
+ * The community queue's playback decision: one request = one official embed —
+ * a YouTube video or a Spotify track, driven through the provider's own API.
+ * Anything the parsers would not have accepted is refused here, so a hand-
+ * edited row can never reach an engine.
+ */
+export function embedSourceForRequest(request: SongRequest): EmbedSource | null {
+  const { provider, id, url } = request.song;
+  if (!isSafeUrl(url)) return null;
+  if (provider === 'youtube') {
+    return YOUTUBE_VIDEO_ID.test(id) ? { provider, playlistId: id, entity: 'video', url } : null;
+  }
+  if (provider === 'spotify') {
+    return SPOTIFY_TRACK_ID.test(id) ? { provider, playlistId: id, entity: 'track', url } : null;
+  }
+  return null;
 }
 
 /** True when the app may play this station itself: local audio or provider embed. */

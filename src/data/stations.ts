@@ -37,6 +37,16 @@ const raw: Station[] = [
     accent: '#f05a45',
     description: 'Old roads. Forgotten songs. New memories.',
     artwork: '/art/neighborhood.svg',
+    // Hero-stage photos — one is drawn on every page load (see lib/backdrop).
+    backdrops: [
+      'https://i.pinimg.com/1200x/8b/82/8f/8b828f5ce63e57c7c33a759f819544cd.jpg',
+      'https://i.pinimg.com/1200x/bd/48/2a/bd482a9fc6fe538cd82938014afd53f6.jpg',
+      'https://i.pinimg.com/1200x/9d/c7/55/9dc755f6d5b464cc7f2664aa205da10e.jpg',
+      'https://i.pinimg.com/1200x/cc/c4/f0/ccc4f0021b67e6d40aa4b01f0d91d7b4.jpg',
+      'https://i.pinimg.com/1200x/37/7e/f8/377ef862b0222fb6ba3381cced861378.jpg',
+      'https://i.pinimg.com/1200x/7c/32/ab/7c32abccf5a044047356cb724eb55d65.jpg',
+      'https://i.pinimg.com/1200x/b5/3e/3a/b53e3a7d55ae614e7742af481c9440c3.jpg',
+    ],
     url: 'https://example.org/nostalgia-radio',
     audioUrl: '/audio/demo-a.wav',
     action: 'play',

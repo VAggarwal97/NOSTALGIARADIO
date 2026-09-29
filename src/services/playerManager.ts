@@ -45,6 +45,7 @@ export class PlayerManager {
   };
 
   private listeners = new Set<() => void>();
+  private endedListeners = new Set<(origin: 'request' | 'station-embed') => void>();
   private host: HTMLElement | null = null;
   private engine: ProviderEngine | null = null;
   private engineProvider: ProviderId | null = null;
@@ -59,6 +60,26 @@ export class PlayerManager {
   };
 
   getState = (): ProviderState => this.state;
+
+  /**
+   * Track boundaries reported by the engines: a community request finished,
+   * or a provider playlist changed video / rested at its end. The app decides
+   * what airs next — the manager never moves playback on its own.
+   */
+  onEnded = (listener: (origin: 'request' | 'station-embed') => void): (() => void) => {
+    this.endedListeners.add(listener);
+    return () => {
+      this.endedListeners.delete(listener);
+    };
+  };
+
+  private emitEnded(): void {
+    if (!this.desired) return;
+    const entity = this.desired.source.entity;
+    const origin: 'request' | 'station-embed' =
+      entity === 'video' || entity === 'track' ? 'request' : 'station-embed';
+    this.endedListeners.forEach((listener) => listener(origin));
+  }
 
   private patch(partial: Partial<ProviderState>): void {
     this.state = { ...this.state, ...partial };
@@ -163,7 +184,17 @@ export class PlayerManager {
     const events: EngineEvents = {
       onStatus: (status, error) => this.patch({ status, error: error ?? null }),
       onProgress: (currentTime, duration) => this.patch({ currentTime, duration }),
-      onTitle: (title) => this.patch({ title }),
+      onTitle: (title) => {
+        // A provider playlist advancing to its next video reports a fresh
+        // title — that is a track boundary for the community queue. Requests
+        // (entity video/track) never take this path; they end via onEnded.
+        const entity = this.desired?.source.entity;
+        const onPlaylist = !entity || entity === 'playlist';
+        const previous = this.state.title;
+        if (onPlaylist && previous && title && title !== previous) this.emitEnded();
+        this.patch({ title });
+      },
+      onEnded: () => this.emitEnded(),
     };
 
     this.engine =

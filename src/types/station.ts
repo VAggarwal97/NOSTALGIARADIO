@@ -53,6 +53,12 @@ export interface Station {
   /** Cinematic artwork served from /public/art. */
   artwork: string;
   /**
+   * Alternative hero backdrops (https image URLs): one is drawn at random per
+   * page load, so reloading changes the stage. `artwork` remains the identity
+   * everywhere else — player, cards and shares never flicker.
+   */
+  backdrops?: string[];
+  /**
    * Two-line hero title: `["Truck Wala", "Radio"]` renders line 1 in ivory and
    * line 2 in the accent colour. Derived from the name when omitted.
    */

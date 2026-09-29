@@ -1,5 +1,6 @@
 import type { CategoryId, Station } from '../types/station';
 import { decideSource, isPlayableDecision, labelForDecision } from '../lib/sourcePolicy';
+import { sessionBackdrop } from '../lib/backdrop';
 import { heroEyebrow, heroMeta, heroTitle } from '../lib/hero';
 import { PlayIcon, PauseIcon, ShareIcon, InfoIcon, LoadingIcon, PinIcon, ShuffleIcon } from './Icons';
 import { StationGallery } from './StationGallery';
@@ -85,6 +86,9 @@ export function CinematicHero({
   }
 
   const decision = decideSource(station);
+  // One backdrop per station per page load — reloads draw a new stage.
+  const stage = sessionBackdrop(station) ?? station.artwork;
+  const isPhoto = stage !== station.artwork;
   const [line1, line2] = heroTitle(station);
   const meta = heroMeta(station);
   const state = badgeState(playerState, isCurrentTrack);
@@ -97,9 +101,9 @@ export function CinematicHero({
     <section className="hero" aria-label={`Featured station: ${station.name}`}>
       <img
         className="hero-art"
-        key={station.artwork}
-        src={station.artwork}
-        alt={`${station.name} — cinematic station artwork`}
+        key={stage}
+        src={stage}
+        alt={isPhoto ? '' : `${station.name} — cinematic station artwork`}
         decoding="async"
       />
       <div className="hero-scrim" />

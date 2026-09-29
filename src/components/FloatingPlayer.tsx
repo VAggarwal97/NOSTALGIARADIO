@@ -26,6 +26,8 @@ interface FloatingPlayerProps {
   provider?: 'youtube' | 'spotify' | null;
   /** Real provider-reported track title, when available. */
   trackTitle?: string | null;
+  /** What is on air right now when it is not the station itself (a community request). */
+  contextLabel?: string | null;
   /** False when the provider exposes no volume API — the control is hidden, not faked. */
   hasVolume?: boolean;
   expanded: boolean;
@@ -76,6 +78,7 @@ export function FloatingPlayer({
   canPlay,
   provider = null,
   trackTitle = null,
+  contextLabel = null,
   hasVolume = true,
   expanded,
   minimized,
@@ -110,7 +113,8 @@ export function FloatingPlayer({
   const title = trackTitle ?? station?.nowPlaying?.title ?? station?.name ?? 'No station selected';
   const subParts = [stateCopy[state]];
   const hasTrackName = Boolean(trackTitle ?? station?.nowPlaying);
-  if (hasTrackName && station) subParts.push(station.name);
+  if (contextLabel) subParts.push(contextLabel);
+  else if (hasTrackName && station) subParts.push(station.name);
   else if (station?.demo) subParts.push('Sample audio');
   else if (station && !providerLabel) subParts.push('Live source');
   if (providerLabel) subParts.push(providerLabel);
@@ -173,10 +177,10 @@ export function FloatingPlayer({
               type="button"
               className="icon-btn player-step"
               onClick={onNext}
-              title="Next station"
+              title={contextLabel ? 'Next request' : 'Next station'}
             >
               <NextIcon size={16} />
-              <span className="visually-hidden">Next station</span>
+              <span className="visually-hidden">{contextLabel ? 'Next request' : 'Next station'}</span>
             </button>
 
             <button

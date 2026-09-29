@@ -103,6 +103,22 @@ try {
   const suggestHtml = renderToString(createElement(App));
   windowStub.location.pathname = '/';
 
+  // Third pass: the MIX flagship with no station deep link — its hero draws one
+  // stage photo per page load (src/lib/backdrop.ts), plain and decorative.
+  windowStub.location.href = 'http://localhost:5173/';
+  windowStub.location.search = '';
+  const stageHtml = renderToString(createElement(App));
+  const stageChecks = [
+    [
+      'draws a real hero stage photo',
+      /class="hero-art"\s+src="https:\/\/i\.pinimg\.com\/1200x\//.test(stageHtml),
+    ],
+    [
+      'stage photo carries no invented alt text',
+      /class="hero-art"[^>]*alt=""/.test(stageHtml),
+    ],
+  ];
+
   const suggestChecks = [
     ['renders the suggest page shell', suggestHtml.includes('suggest-page')],
     ['renders the community hero', /community radio/i.test(suggestHtml) && /your music/i.test(suggestHtml)],
@@ -120,7 +136,7 @@ try {
   ];
 
   let failed = 0;
-  for (const [name, ok] of [...checks, ...suggestChecks]) {
+  for (const [name, ok] of [...checks, ...stageChecks, ...suggestChecks]) {
     console.log(`  ${ok ? 'ok  ' : 'FAIL'}  ${name}`);
     if (!ok) failed += 1;
   }

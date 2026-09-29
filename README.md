@@ -53,7 +53,9 @@ Vite + React + TypeScript · two views · no login · no database · static CDN 
   scroll and fades ~800ms after you stop, gradient masks fade the top and bottom rows, and the
   active card brightens its artwork with a coral glow and a thin coral underline — no borders.
   On mobile it becomes a horizontal snap rail under the station copy — never a sidebar.
-- **Hero** ≈ 100vh: cinematic artwork with a slow 34s breathing drift and a coral accent
+- **Hero** ≈ 100vh: cinematic artwork with a slow 34s breathing drift — or, for stations that
+  declare `backdrops`, one real stage photo drawn at random **per page load** (reload the page
+  and the stage changes; nothing is stored) — plus a coral accent
   glow, dark multi-layer scrim, grain, a non-numeric live badge (**READY / LOADING / ON AIR /
   PAUSED / OFFLINE / ERROR** with green/amber/muted/red states) plus the live session count
   once presence answers, editorial serif title (line 2 in the station accent), short
@@ -108,6 +110,18 @@ the current song never stops):
 Votes, statuses, rankings and track metadata all come from `src/lib/request-api.ts` and the
 providers' oEmbed endpoints — the client never computes, trusts or fabricates them.
 
+**How a request actually airs** (`src/lib/queue.ts`, driven from `App`): at every playback
+boundary — a sample track ends, a request finishes, or you press `►►` on the pill — the
+`MOST WANTED` order is fetched fresh and the **highest-voted open request** goes on air
+through the provider's official embed. The song that is playing is never interrupted
+mid-track; the queue only ever takes over at a boundary. A request that plays to its end (or
+is advanced past with Next) retires to `PLAYED` and never replays; one whose source fails, is
+unavailable, or cannot be embedded is skipped for the session and the **next highest-voted**
+takes its place — three failures in a row end the queue. Provider playlists keep managing
+themselves: the queue only steps in at a real track boundary (a new video title or the end of
+the list), never on a timer. While a request is on air the pill and the engine dock label it
+`Community request` with the request's real title.
+
 ## Run
 
 ```bash
@@ -125,7 +139,7 @@ npm run dev          # http://localhost:5173
 | `npm run art` | Regenerate `public/art/*.svg` (12 original procedural scenes) |
 | `npm run validate:content` | Content gate: unique IDs, valid categories, flagship per category (exists · marked · two-line title · accent), artwork on disk, safe URL protocols, required fields, no executable markup |
 | `npm run lint:security` | Same gate in `--strict` mode (warnings fail) |
-| `npm test` | Vitest: URL safety, source policy, catalog/search, the request board (dedupe, rate limits, one vote per visitor, ranking rules), provider metadata resolution, spec invariants |
+| `npm test` | Vitest: URL safety, source policy, catalog/search, the request board (dedupe, rate limits, one vote per visitor, ranking rules), the community queue (eligibility, hand-off, retire rules), session backdrop draw, provider metadata resolution, spec invariants |
 | `npm run typecheck` | `tsc -b` |
 | `npm run smoke` | Renders both views (`/` and `/suggest-music`) to HTML through Vite SSR and asserts structure, honest empty states and no fabricated data |
 | `npm run build` | Validate → typecheck → Vite production build into `dist/` |
@@ -180,7 +194,8 @@ src/
   lib/                    catalog, hero (title/eyebrow/accent), sourcePolicy, urlSafety,
                           share, routes (the two view URLs + deep links), track-meta
                           (provider oEmbed metadata), presence-api, rating-api, request-api
-                          (board/vote API with a local store), id
+                          (board/vote API with a local store), queue (what airs next and
+                          how it hands off), backdrop (one stage photo per page load), id
   services/               playerManager (engine orchestration + React subscription),
                           youtubePlayer / spotifyPlayer (official embed APIs),
                           engine (shared contract), scriptLoader (one tag per API)
@@ -205,6 +220,7 @@ to change. Schema:
   accent: '#e2543a',          // hero/CTA/active-chip tint for this station
   description: '…',
   artwork: '/art/highway.svg', // local /art/*.svg — validated to exist on disk
+  backdrops?: ['https://…jpg', …], // hero-stage photos: one drawn at random per page load
   url: 'https://…',           // station's own page (validated: http/https only)
   audioUrl: '/audio/…',       // required when action === 'play'
   provider?: 'youtube' | 'spotify',   // official embed playback (see below)
@@ -299,6 +315,10 @@ Three systems sit on top of the static screen. All three follow the same rules: 
     drops in later without touching the components. Track metadata (title, artist, artwork)
     is resolved by `src/lib/track-meta.ts` through each provider's own oEmbed endpoint —
     a refusal renders an honest unavailable state, never invented tags.
+  - `src/lib/queue.ts` — the hand-off rules between that board and the player: which
+    requests are eligible (open · playable · not on air · not failed this session), which
+    origin reported a boundary, and when a request retires to `PLAYED`. The client never
+    decides votes or rank — it only asks the API what is next.
 
 All motion is CSS/`requestAnimationFrame` only — no animation library. Everything secondary
 (search, rating data, presence, the request board) loads after first paint, so the first
@@ -308,6 +328,7 @@ paint is just the hero, the gallery and the player shell.
 
 - Baseline CSP in `index.html` (meta) and `public/_headers` (HTTP): `default-src 'self'`,
   `media-src 'self' https:` (same-origin sample audio today, authorised HTTPS streams later),
+  `img-src 'self' data: https:` (real artwork and hero-stage photos load as plain images),
   `frame-src` allowlist of exactly the two playback providers (`youtube.com`,
   `youtube-nocookie.com`, `open.spotify.com`), matching `script-src` additions for their
   official API scripts, `connect-src` for the app, the playback providers and their own oEmbed

@@ -60,6 +60,12 @@ export function useRadioPlayer(options: AudioPlayerOptions = {}): RadioPlayerApi
 
   const providerActive = isProviderEngine(engine);
 
+  // Provider boundaries (request finished, playlist video changed) reach the
+  // same onEnded the local audio element uses — always via the latest closure.
+  const onEndedRef = useRef(options.onEnded);
+  onEndedRef.current = options.onEnded;
+  useEffect(() => manager.onEnded((origin) => onEndedRef.current?.(origin)), [manager]);
+
   // Audio stays the single source of truth for volume/mute; mirror it into the
   // embed so a preference carries across station switches.
   useEffect(() => {

@@ -2,9 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export type PlayerStatus = 'idle' | 'loading' | 'playing' | 'paused' | 'error';
 
+/** Who reports the end of a track: the local audio element or a provider engine. */
+export type PlaybackEndOrigin = 'audio' | 'request' | 'station-embed';
+
 export interface AudioPlayerOptions {
   /** Fired when the current track ends so the rail can advance. */
-  onEnded?: () => void;
+  onEnded?: (origin?: PlaybackEndOrigin) => void;
 }
 
 export interface AudioPlayerApi {
@@ -78,7 +81,7 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}): AudioPlayerApi
     const onMeta = () => setDuration(Number.isFinite(element.duration) ? element.duration : 0);
     const onEndedEvent = () => {
       setStatus('paused');
-      onEndedRef.current?.();
+      onEndedRef.current?.('audio');
     };
     const onErrorEvent = () => {
       setStatus('error');

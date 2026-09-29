@@ -13,6 +13,8 @@ export interface EngineEvents {
   onProgress(currentTime: number, duration: number): void;
   /** Real track title when the provider exposes one; otherwise null. */
   onTitle(title: string | null): void;
+  /** The loaded video/track finished, or the playlist rested — see PlayerManager. */
+  onEnded?(): void;
 }
 
 /**

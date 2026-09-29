@@ -144,6 +144,21 @@ async function main() {
       }
     }
 
+    // Hero-stage alternatives: real https image URLs only, never markup.
+    if (station.backdrops !== undefined) {
+      if (!Array.isArray(station.backdrops) || station.backdrops.length === 0 || station.backdrops.length > 12) {
+        fail(`${at} backdrops must be an array of 1–12 URLs.`);
+      } else {
+        for (const [index, src] of station.backdrops.entries()) {
+          if (typeof src !== 'string' || !/^https:\/\/[^\s'"`<>]+$/i.test(src)) {
+            fail(`${at} backdrop #${index + 1} must be an https image URL, got "${String(src)}".`);
+          } else if (EXECUTABLE.test(src)) {
+            fail(`${at} backdrop #${index + 1} contains executable markup.`);
+          }
+        }
+      }
+    }
+
     if (!categoryIds.has(station.category)) fail(`${at} uses unknown category "${station.category}".`);
     else if (station.category === 'mix' && station.id !== mixFlagshipId) {
       fail(`${at} must use a home category; only the MIX flagship may use "mix".`);

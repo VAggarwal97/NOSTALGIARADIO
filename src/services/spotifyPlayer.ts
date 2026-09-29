@@ -83,6 +83,7 @@ export function createSpotifyEngine(
   let ready = false;
   let destroyed = false;
   let source: EmbedSource = initial;
+  let endedFired = false;
   const queue: Array<() => void> = [];
 
   const exec = (command: () => void) => {
@@ -125,6 +126,21 @@ export function createSpotifyEngine(
           events.onProgress(toSeconds(data.position), toSeconds(data.duration));
           if (data.isBuffering) events.onStatus('loading');
           else events.onStatus(data.isPaused ? 'paused' : 'playing');
+
+          // A single-track request is over when the provider rests on it or
+          // moves to another entity — read from real provider state, never
+          // timed or simulated. Playlists are unaffected (entity guard).
+          if (source.entity === 'track' && !endedFired) {
+            const movedOn = data.playingURI?.includes(source.playlistId) === false;
+            const atRest =
+              data.duration !== undefined &&
+              data.position !== undefined &&
+              data.duration - data.position <= 750;
+            if (movedOn || atRest) {
+              endedFired = true;
+              events.onEnded?.();
+            }
+          }
         });
 
         queue.splice(0).forEach((command) => command());
@@ -139,6 +155,7 @@ export function createSpotifyEngine(
     load(next: EmbedSource, autoplay: boolean) {
       const changed = next.url !== source.url;
       source = next;
+      endedFired = false;
       events.onStatus('loading');
       events.onProgress(0, 0);
       events.onTitle(null);
