@@ -20,6 +20,7 @@ import { FloatingPlayer } from '../components/FloatingPlayer';
 import { SearchOverlay } from '../components/SearchOverlay';
 import { StationInfoModal } from '../components/StationInfoModal';
 import { HelpOverlay } from '../components/HelpOverlay';
+import { SupportView } from '../components/SupportView';
 import { Toast } from '../components/Toast';
 
 const queryParam = (name: string): string | null =>
@@ -54,6 +55,7 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
   const [playerExpanded, setPlayerExpanded] = useState(false);
   const [playerMinimized, setPlayerMinimized] = useState(false);
   const [compact, setCompact] = useState(false);
@@ -259,13 +261,22 @@ export default function App() {
   const openSearch = useCallback(() => {
     setHelpOpen(false);
     setInfoOpen(false);
+    setSupportOpen(false);
     setSearchOpen(true);
+  }, []);
+
+  const openSupport = useCallback(() => {
+    setSearchOpen(false);
+    setInfoOpen(false);
+    setHelpOpen(false);
+    setSupportOpen(true);
   }, []);
 
   const closeOverlays = useCallback(() => {
     setSearchOpen(false);
     setInfoOpen(false);
     setHelpOpen(false);
+    setSupportOpen(false);
   }, []);
 
   useKeyboardShortcuts({
@@ -277,6 +288,7 @@ export default function App() {
     toggleHelp: () => {
       setInfoOpen(false);
       setSearchOpen(false);
+      setSupportOpen(false);
       setHelpOpen((open) => !open);
     },
     share: () => void share(selected),
@@ -317,12 +329,11 @@ export default function App() {
   return (
     <div className="shell grain" style={shellStyle}>
       <TopNav
-        activeCategory={category}
         compact={compact}
         serviceLinks={serviceLinks}
-        onSelectCategory={selectCategory}
         onOpenSearch={openSearch}
         onOpenHelp={() => setHelpOpen(true)}
+        onOpenSupport={openSupport}
       />
 
       <main>
@@ -330,6 +341,7 @@ export default function App() {
           station={selected}
           playerState={playerState}
           isCurrentTrack={isCurrentTrack}
+          activeCategory={category}
           onPrimary={() => {
             if (!selected) return;
             // CTA reads "Pause" while this station is audible — toggle, don't restart.
@@ -341,6 +353,9 @@ export default function App() {
           }}
           onShare={() => void share(selected)}
           onInfo={() => setInfoOpen(true)}
+          onSurprise={surprise}
+          onSelectCategory={selectCategory}
+          onExploreAll={openSearch}
         />
       </main>
 
@@ -382,6 +397,12 @@ export default function App() {
       />
 
       <HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
+
+      <SupportView
+        open={supportOpen}
+        artwork={selected?.artwork ?? null}
+        onClose={() => setSupportOpen(false)}
+      />
 
       <Toast message={toast} />
 

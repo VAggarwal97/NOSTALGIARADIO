@@ -11,15 +11,17 @@ Vite + React + TypeScript · one page · no login · no database · static CDN d
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ NOSTALGIA RADIO   [MIX] TRAVEL BEYOND FOLK AMBIENT FESTIVALS WORK    │
-│ NO LOGIN · NO DATABASE · JUST STATIONS            SHOP  ♪ 𝘈 ▸  ?  ⌕ │
+│ NOSTALGIA RADIO                          ♪ 𝘈   ♥ DONATE   ?   ⌕      │
+│ NO LOGIN · NO DATABASE · JUST STATIONS                                │
 │                                                                      │
-│  ● ON AIR                                                            │
-│  TRAVEL · ROAD · PEOPLE · MEMORIES                                   │
-│  Truck Wala                                                          │
-│  Radio                          ← full-bleed cinematic artwork      │
-│  Highway bangers, desi beats and trucker tales…                      │
-│  ⌖ Highway · Hindi · 1990s–2000s          [ ▶ PLAY ]  ⋯             │
+│  ● ON AIR                         ┌ EXPLORE THE RADIO ────────────┐  │
+│  TRAVEL · ROAD · PEOPLE · MEMORIES │ MIX   TRAVEL  BEYOND  FOLK    │  │
+│  Truck Wala                        │ AMBIENT FESTIVALS WORK  SHOP  │  │
+│  Radio                             │ All 37 stations →             │  │
+│  Highway bangers, desi beats and   └──────────────────────────────┘  │
+│  trucker tales from India's long roads…            ← artwork behind  │
+│  ⌖ Highway · Hindi · 1990s–2000s                                     │
+│  [ ▶ PLAY ]  [ SURPRISE ME ]  ⋯                                       │
 │                                                                      │
 │        SPACE Play/Pause   ← → Seek   M Mute   S Share   ? Help       │
 │                                                                      │
@@ -31,24 +33,31 @@ Vite + React + TypeScript · one page · no login · no database · static CDN d
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Header** is the only navigation: brand → station selectors → Spotify / YouTube Music
-  (shown only when the station configures them) · help · search. On mobile the selector row
-  becomes a full-screen station list — never a sidebar.
-- **Categories are station selectors, not pages.** Pressing TRAVEL swaps the hero to that
-  category's flagship station — artwork, two-line title, description, metadata, accent and
-  track all crossfade. The layout never changes, nothing navigates, nothing reloads.
+- **Header is a utility bar, not navigation**: brand → Spotify / YouTube Music (shown only
+  when the station configures them) · **Donate** · help · search. No category links — they
+  moved into the hero.
+- **The category gallery lives inside the hero.** The right side of the hero is a floating
+  wall of miniature posters — one card per listening world (artwork, name, one-line tagline,
+  `region · language · era`, status). Pressing TRAVEL swaps the hero to that category's
+  flagship station — artwork, two-line title, copy, metadata, accent and track all crossfade.
+  Same screen, same layout, nothing navigates, nothing reloads. On mobile the gallery
+  becomes a horizontal snap rail under the station copy — never a sidebar or hamburger menu.
 - **Hero** ≈ 100vh: cinematic artwork, dark multi-layer scrim, grain, a non-numeric live badge,
   editorial serif title (line 2 in the station accent), short description, `⌖ region · language ·
-  era`, one dominant CTA, subtle keyboard hints.
+  era`, one dominant CTA, **Surprise me**, subtle keyboard hints.
 - **Floating glass player**: pill (720px max, backdrop blur, soft shadow) with circular
   artwork, track/station, transport, volume, a real queue of the current station set, and a
   progress line that renders **only** when the audio reports a real duration. It can minimise
   into a small `◉ Now Playing` chip. Mobile: compact rounded bar → expands in place.
-- **Overlays only**: search, station details, keyboard help, toasts.
+- **Donate** opens an in-app support view (`Keep the radio alive`) with preset/custom amounts
+  and a single configurable payment link (`src/data/support.ts`) — no account, no stored data,
+  and the radio keeps playing underneath.
+- **Overlays only**: search, station details, keyboard help, support, toasts.
 
 Deliberately absent: rails/grids of cards, category sections, footer blocks, sidebars,
-logins, avatars, wishlists, dashboards, notifications, admin/analytics widgets, filter
-panels, dense tables, fake listener counts or progress, decorative controls, autoplay.
+category pages, logins, avatars, wishlists, dashboards, notifications, admin/analytics
+widgets, filter panels, dense tables, fake listener counts or progress, decorative controls,
+autoplay.
 
 ## Run
 
@@ -107,11 +116,13 @@ public/
   manifest.webmanifest    installable app shell
 src/
   app/App.tsx             single-screen shell: hero + player + overlays
-  components/             TopNav (with CategoryNav), CinematicHero, FloatingPlayer,
-                          SearchOverlay, StationInfoModal, HelpOverlay, Toast, Icons
+  components/             TopNav (utility bar + Donate), CinematicHero, StationGallery,
+                          FloatingPlayer, SearchOverlay, StationInfoModal, HelpOverlay,
+                          SupportView, Toast, Icons
   data/categories.ts      8 station selectors: MIX · TRAVEL · BEYOND · FOLK · AMBIENT ·
                           FESTIVALS · WORK · SHOP — each with `flagship` + `accent`
   data/stations.ts        station inventory (replace with the full source inventory)
+  data/support.ts         donate amounts, support copy and the payment link to swap in
   hooks/                  useAudioPlayer, useKeyboardShortcuts
   lib/                    catalog, hero (title/eyebrow/accent), sourcePolicy, urlSafety, share
   styles/                 tokens.css (palette/type) + globals.css (layout & components)

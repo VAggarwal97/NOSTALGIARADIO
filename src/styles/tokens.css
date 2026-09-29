@@ -37,8 +37,8 @@
   --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 
   --size-brand: clamp(1.35rem, 1rem + 0.8vw, 2rem); /* 21–32px */
-  --size-hero: clamp(3rem, 1rem + 7vw, 7.5rem); /* 48–120px */
-  --size-hero-2: clamp(2.75rem, 0.9rem + 6.2vw, 6.9rem); /* 44–110px */
+  --size-hero: clamp(3rem, 1.1rem + 5vw, 5.75rem); /* 48–92px — two columns now share the hero */
+  --size-hero-2: clamp(2.6rem, 1rem + 4.5vw, 5.25rem); /* 42–84px */
   --size-heading: clamp(1.35rem, 1.1rem + 0.9vw, 1.9rem);
   --size-card-title: 1.0625rem; /* 17px */
   --size-card-body: 0.875rem; /* 14px */

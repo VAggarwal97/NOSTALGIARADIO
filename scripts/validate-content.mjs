@@ -186,6 +186,25 @@ async function main() {
     if (count > 1) warn(`Duplicate display name "${name}" appears ${count} times (allowed; IDs are unique).`);
   }
 
+  // The donate destination must be a real, safe link — never a silent placeholder.
+  try {
+    const { SUPPORT_URL, SUPPORT_TIERS, SUPPORT_USES } = await loadDataModule(
+      path.join(DATA_DIR, 'support.ts'),
+    );
+    if (!isSafeUrl(SUPPORT_URL)) fail(`support.ts SUPPORT_URL is unsafe or invalid: ${String(SUPPORT_URL)}`);
+    else if (isPlaceholder(SUPPORT_URL)) {
+      warn('support.ts SUPPORT_URL still uses a placeholder — set the real payment link before launch.');
+    }
+    if (!Array.isArray(SUPPORT_TIERS) || SUPPORT_TIERS.length === 0 || SUPPORT_TIERS.some((t) => !Number.isFinite(t) || t <= 0)) {
+      fail('support.ts SUPPORT_TIERS must be a non-empty list of positive amounts.');
+    }
+    if (!Array.isArray(SUPPORT_USES) || SUPPORT_USES.length === 0) {
+      fail('support.ts SUPPORT_USES must list what contributions pay for.');
+    }
+  } catch (error) {
+    fail(`support.ts could not be validated: ${error.message}`);
+  }
+
   for (const message of warnings) console.warn(`  warn  ${message}`);
   for (const message of errors) console.error(`  error ${message}`);
 
