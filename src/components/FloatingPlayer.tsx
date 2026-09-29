@@ -45,8 +45,8 @@ interface FloatingPlayerProps {
 
 const stateCopy: Record<PlayerState, string> = {
   ready: 'Ready',
-  buffering: 'Buffering',
-  playing: 'Playing',
+  buffering: 'Loading',
+  playing: 'On air',
   paused: 'Paused',
   offline: 'Offline',
   error: 'Error',

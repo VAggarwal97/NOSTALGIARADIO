@@ -8,6 +8,8 @@ interface TopNavProps {
   serviceLinks: ExternalLink[];
   onOpenSearch: () => void;
   onOpenHelp: () => void;
+  /** Opens the suggestion overlay — the navbar never navigates away. */
+  onSuggest: () => void;
 }
 
 const serviceIcon = (label: string) =>
@@ -21,7 +23,7 @@ const isExternal = /^https?:\/\//i.test(DONATE_LINK.href);
  * Categories deliberately live inside the hero gallery: pressing one re-tunes
  * the same screen instead of routing anywhere.
  */
-export function TopNav({ compact, serviceLinks, onOpenSearch, onOpenHelp }: TopNavProps) {
+export function TopNav({ compact, serviceLinks, onOpenSearch, onOpenHelp, onSuggest }: TopNavProps) {
   return (
     <header className="topnav" data-compact={compact}>
       <div className="topnav-inner wrap">
@@ -30,6 +32,11 @@ export function TopNav({ compact, serviceLinks, onOpenSearch, onOpenHelp }: TopN
         </a>
 
         <div className="nav-tools">
+          {/* Same overlay as the control beside the player — one page, one queue. */}
+          <button type="button" className="nav-suggest" onClick={onSuggest} title="Suggest a song">
+            Suggest music
+          </button>
+
           {serviceLinks.map((link) => (
             <a
               key={link.label}

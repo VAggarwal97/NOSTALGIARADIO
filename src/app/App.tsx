@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 
 import { CATEGORY_MAP, isCategoryId } from '../data/categories';
@@ -12,6 +12,7 @@ import { stationAccent } from '../lib/hero';
 
 import { useRadioPlayer } from '../hooks/useRadioPlayer';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { usePresence } from '../hooks/usePresence';
 import { getPlayerManager } from '../services/playerManager';
 
 import { TopNav } from '../components/TopNav';
@@ -19,10 +20,16 @@ import { CinematicHero } from '../components/CinematicHero';
 import type { PlayerState } from '../components/CinematicHero';
 import { FloatingPlayer } from '../components/FloatingPlayer';
 import { EngineDock } from '../components/EngineDock';
-import { SearchOverlay } from '../components/SearchOverlay';
+import { CommunityControls } from '../components/CommunityControls';
 import { StationInfoModal } from '../components/StationInfoModal';
 import { HelpOverlay } from '../components/HelpOverlay';
 import { Toast } from '../components/Toast';
+
+/* Secondary systems download on demand — first paint never waits for them. */
+const SearchOverlay = lazy(() =>
+  import('../components/SearchOverlay').then((module) => ({ default: module.SearchOverlay })),
+);
+const SuggestModal = lazy(() => import('../components/SuggestModal'));
 
 const queryParam = (name: string): string | null =>
   typeof window === 'undefined'
@@ -56,6 +63,7 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [suggestOpen, setSuggestOpen] = useState(false);
   const [playerExpanded, setPlayerExpanded] = useState(false);
   const [playerMinimized, setPlayerMinimized] = useState(false);
   const [compact, setCompact] = useState(false);
@@ -64,6 +72,9 @@ export default function App() {
   const [announcement, setAnnouncement] = useState('');
 
   const toastTimer = useRef<number | null>(null);
+
+  // Approximate live sessions — decorative, resolved after first paint.
+  const listeners = usePresence();
 
   // The header tightens after the first scroll — same shell, smaller footprint.
   useEffect(() => {
@@ -263,6 +274,7 @@ export default function App() {
   const openSearch = useCallback(() => {
     setHelpOpen(false);
     setInfoOpen(false);
+    setSuggestOpen(false);
     setSearchOpen(true);
   }, []);
 
@@ -270,6 +282,7 @@ export default function App() {
     setSearchOpen(false);
     setInfoOpen(false);
     setHelpOpen(false);
+    setSuggestOpen(false);
   }, []);
 
   /** Spotify embeds expose no volume API — say so instead of pretending to work. */
@@ -293,6 +306,7 @@ export default function App() {
     toggleHelp: () => {
       setInfoOpen(false);
       setSearchOpen(false);
+      setSuggestOpen(false);
       setHelpOpen((open) => !open);
     },
     share: () => void share(selected),
@@ -341,6 +355,7 @@ export default function App() {
         serviceLinks={serviceLinks}
         onOpenSearch={openSearch}
         onOpenHelp={() => setHelpOpen(true)}
+        onSuggest={() => setSuggestOpen(true)}
       />
 
       <main>
@@ -349,6 +364,7 @@ export default function App() {
           playerState={playerState}
           isCurrentTrack={isCurrentTrack}
           activeCategory={category}
+          listeners={listeners}
           onPrimary={() => {
             if (!selected) return;
             // CTA reads "Pause" while this station is audible — toggle, don't restart.
@@ -365,6 +381,9 @@ export default function App() {
           onExploreAll={openSearch}
         />
       </main>
+
+      {/* Participate controls sit beside the player — never inside it. */}
+      <CommunityControls station={selected} onSuggest={() => setSuggestOpen(true)} />
 
       <FloatingPlayer
         station={playerStation}
@@ -401,12 +420,22 @@ export default function App() {
         />
       ) : null}
 
-      <SearchOverlay
-        open={searchOpen}
-        onClose={() => setSearchOpen(false)}
-        onPick={handleSelect}
-        onSurprise={surprise}
-      />
+      {searchOpen ? (
+        <Suspense fallback={null}>
+          <SearchOverlay
+            open
+            onClose={() => setSearchOpen(false)}
+            onPick={handleSelect}
+            onSurprise={surprise}
+          />
+        </Suspense>
+      ) : null}
+
+      {suggestOpen ? (
+        <Suspense fallback={null}>
+          <SuggestModal station={selected} onClose={() => setSuggestOpen(false)} />
+        </Suspense>
+      ) : null}
 
       <StationInfoModal
         station={infoOpen ? selected : null}

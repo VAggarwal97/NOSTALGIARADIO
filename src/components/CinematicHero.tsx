@@ -12,6 +12,8 @@ interface CinematicHeroProps {
   isCurrentTrack: boolean;
   /** Category the gallery should mark as active. */
   activeCategory: CategoryId;
+  /** Approximate live sessions from the presence channel; null until known. */
+  listeners: number | null;
   onPrimary: () => void;
   onShare: () => void;
   onInfo: () => void;
@@ -23,11 +25,11 @@ interface CinematicHeroProps {
 /** Non-numeric station flavour — this is a radio badge, not an analytics widget. */
 const badgeCopy: Record<PlayerState, string> = {
   ready: 'Ready',
-  buffering: 'Tuning in',
+  buffering: 'Loading',
   playing: 'On air',
   paused: 'Paused',
   offline: 'Offline',
-  error: 'Signal problem',
+  error: 'Error',
 };
 
 const badgeState = (state: PlayerState, current: boolean): PlayerState => {
@@ -40,6 +42,7 @@ export function CinematicHero({
   playerState,
   isCurrentTrack,
   activeCategory,
+  listeners,
   onPrimary,
   onShare,
   onInfo,
@@ -100,10 +103,19 @@ export function CinematicHero({
         decoding="async"
       />
       <div className="hero-scrim" />
+      <div className="hero-glow" aria-hidden="true" />
 
       <span className="live-badge" data-state={state}>
         <span className="dot" aria-hidden="true" />
         {badgeCopy[state]}
+        {/* Real sessions only — nothing renders until the channel answers.
+            The key restarts the count-in animation exactly when the number
+            changes, and never otherwise. */}
+        {listeners ? (
+          <span className="live-count" key={listeners}>
+            {listeners} listening
+          </span>
+        ) : null}
       </span>
 
       <div className="hero-content wrap">

@@ -86,7 +86,13 @@ try {
     ['no site footer', !html.includes('site-footer')],
     ['no sidebar markup', !html.includes('sidebar')],
     ['no login or account UI', !/sign ?up|register|avatar|profile/i.test(html)],
-    ['no listener counts', !/\d+\s*(listening|listeners)/i.test(html)],
+    // Presence fills this in after first paint — SSR must never invent a number.
+    ['no hardcoded listener counts in SSR', !/\d+\s*(listening|listeners)/i.test(html)],
+    ['renders the participate controls beside the player', html.includes('community-controls') && html.includes('suggest-btn')],
+    ['rating aggregates stay honest until someone rates', !/\d+ ratings/.test(html) && html.includes('Be the first')],
+    ['no suggestion modal until it is asked for', !html.includes('dialog--suggest') && !html.includes('suggest-form')],
+    ['the archive renders its seamless loop copy', (html.match(/class="station-card"/g) ?? []).length === 16],
+    ['no station-level fake ratings', !/★\s*\d/.test(html)],
     ['no undefined leakage', !html.includes('undefined</')],
     ['no NaN leakage', !html.includes('NaN')],
   ];

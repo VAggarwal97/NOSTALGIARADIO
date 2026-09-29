@@ -26,6 +26,12 @@
   /* Lightened accent for small text, keeps body-size contrast readable */
   --accent-text: color-mix(in srgb, var(--accent) 74%, var(--ivory));
 
+  /* Signal states — station-independent, so status colour never drifts
+     with the accent. Green reads "alive", amber "loading", coral "broken". */
+  --state-green: #65d68a;
+  --state-amber: #e3a74f;
+  --state-error: #ff5a4f;
+
   /* Lines & glass */
   --border: rgba(244, 235, 221, 0.12);
   --border-strong: rgba(244, 235, 221, 0.24);
