@@ -27,12 +27,17 @@
     <!--
       Baseline CSP for the static app. `frame-ancestors` and `Referrer-Policy` /
       `X-Content-Type-Options` / `Permissions-Policy` / HSTS are HTTP-only and are
-      delivered via public/_headers (see README). Keep this meta policy in sync with
-      public/_headers. frame-src stays 'none' until an explicit embed allowlist exists.
+      delivered via public/_headers (see README). Keep this meta policy in sync
+      with public/_headers.
+
+      The embed allowlist is exactly two providers, driven only when a station
+      configures one: the YouTube IFrame API (script from youtube.com/s.ytimg.com,
+      player iframe, parent-page beacons) and the Spotify iFrame API (script +
+      embed iframe from open.spotify.com). Nothing else may frame in.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self'; media-src 'self' https:; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests;"
+      content="default-src 'self'; script-src 'self' https://www.youtube.com https://s.ytimg.com https://open.spotify.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https://www.youtube.com https://www.google.com; media-src 'self' https:; frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://open.spotify.com; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests;"
     />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
   </head>

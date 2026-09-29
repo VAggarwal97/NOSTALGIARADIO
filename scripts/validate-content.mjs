@@ -6,6 +6,7 @@
  *   • unknown category IDs
  *   • unsafe URL protocols (javascript:, data:, blob:, …)
  *   • missing required fields / missing audio for playable stations
+ *   • provider/playlistUrl pairs that don't match a real playlist page shape
  *   • executable HTML/script payloads in any text field
  *
  * Warns (never fails) on duplicate display names, missing optional metadata and
@@ -165,6 +166,51 @@ async function main() {
       fail(`${at} has invalid sourceType "${station.sourceType}".`);
     }
 
+    // Provider playlist config: both fields or neither, and the URL must be a
+    // playlist page on that exact provider (mirrors src/lib/sourcePolicy.ts).
+    const hasProvider = station.provider !== undefined;
+    const hasPlaylist = hasText(station.playlistUrl);
+    const looksPlaceholderId = (value) => /(your|placeholder|xxxx|dummy)/i.test(value);
+    if (hasProvider && !['youtube', 'spotify'].includes(station.provider)) {
+      fail(`${at} has invalid provider "${station.provider}".`);
+    } else if (hasProvider && !hasPlaylist) {
+      fail(`${at} sets provider "${station.provider}" without a playlistUrl.`);
+    } else if (hasPlaylist && !hasProvider) {
+      fail(`${at} has a playlistUrl but no provider.`);
+    } else if (hasProvider && hasPlaylist) {
+      if (station.sourceType !== 'embed') {
+        warn(`${at} plays through a provider but sourceType is "${station.sourceType}" — use "embed".`);
+      }
+      if (!isSafeUrl(station.playlistUrl)) {
+        fail(`${at} playlistUrl is unsafe or invalid: ${station.playlistUrl}`);
+      } else {
+        try {
+          const parsed = new URL(station.playlistUrl);
+          const host = parsed.hostname.toLowerCase();
+          if (station.provider === 'youtube') {
+            const okHost = ['www.youtube.com', 'youtube.com', 'music.youtube.com'].includes(host);
+            const list = parsed.searchParams.get('list');
+            if (!okHost || parsed.pathname !== '/playlist' || !list || !/^[A-Za-z0-9_-]{6,}$/.test(list)) {
+              fail(`${at} playlistUrl must be a YouTube playlist page (youtube.com/playlist?list=…), got "${station.playlistUrl}".`);
+            } else if (looksPlaceholderId(list)) {
+              warn(`${at} playlistId "${list}" still looks like a placeholder — the station stays on its source page until it's replaced.`);
+            }
+          } else if (station.provider === 'spotify') {
+            const match = parsed.pathname.match(/^\/(?:intl-[a-z-]+\/)?playlist\/([A-Za-z0-9]{10,})\/?$/);
+            if (host !== 'open.spotify.com' || !/playlist\//.test(parsed.pathname)) {
+              fail(`${at} playlistUrl must be a Spotify playlist page (open.spotify.com/playlist/…), got "${station.playlistUrl}".`);
+            } else if (looksPlaceholderId(parsed.pathname)) {
+              warn(`${at} playlistId still looks like a placeholder — the station stays on its source page until it's replaced.`);
+            } else if (!match) {
+              fail(`${at} playlistUrl must end in a Spotify playlist ID (open.spotify.com/playlist/…), got "${station.playlistUrl}".`);
+            }
+          }
+        } catch {
+          fail(`${at} playlistUrl could not be parsed: ${station.playlistUrl}`);
+        }
+      }
+    }
+
     for (const field of ['region', 'era']) {
       if (station[field] !== undefined && EXECUTABLE.test(String(station[field]))) {
         fail(`${at} field "${field}" contains executable markup.`);
@@ -186,23 +232,22 @@ async function main() {
     if (count > 1) warn(`Duplicate display name "${name}" appears ${count} times (allowed; IDs are unique).`);
   }
 
-  // The donate destination must be a real, safe link — never a silent placeholder.
+  // The donate slot must never ship as an unnoticed placeholder or unsafe URL.
   try {
-    const { SUPPORT_URL, SUPPORT_TIERS, SUPPORT_USES } = await loadDataModule(
-      path.join(DATA_DIR, 'support.ts'),
-    );
-    if (!isSafeUrl(SUPPORT_URL)) fail(`support.ts SUPPORT_URL is unsafe or invalid: ${String(SUPPORT_URL)}`);
-    else if (isPlaceholder(SUPPORT_URL)) {
-      warn('support.ts SUPPORT_URL still uses a placeholder — set the real payment link before launch.');
+    const { DONATE_LINK } = await loadDataModule(path.join(DATA_DIR, 'donate.ts'));
+    if (!DONATE_LINK || typeof DONATE_LINK.label !== 'string' || !DONATE_LINK.label.trim()) {
+      fail('donate.ts DONATE_LINK.label must have text.');
     }
-    if (!Array.isArray(SUPPORT_TIERS) || SUPPORT_TIERS.length === 0 || SUPPORT_TIERS.some((t) => !Number.isFinite(t) || t <= 0)) {
-      fail('support.ts SUPPORT_TIERS must be a non-empty list of positive amounts.');
-    }
-    if (!Array.isArray(SUPPORT_USES) || SUPPORT_USES.length === 0) {
-      fail('support.ts SUPPORT_USES must list what contributions pay for.');
+    const href = DONATE_LINK?.href;
+    if (typeof href !== 'string' || !href.trim()) {
+      fail('donate.ts DONATE_LINK.href must be a destination string ("#" keeps the placeholder).');
+    } else if (href !== '#' && !isSafeUrl(href)) {
+      fail(`donate.ts DONATE_LINK.href is unsafe or invalid: ${href}`);
+    } else if (href === '#') {
+      warn('donate.ts DONATE_LINK.href is still the "#" placeholder — set the real donation link.');
     }
   } catch (error) {
-    fail(`support.ts could not be validated: ${error.message}`);
+    fail(`donate.ts could not be validated: ${error.message}`);
   }
 
   for (const message of warnings) console.warn(`  warn  ${message}`);

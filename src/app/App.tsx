@@ -6,21 +6,22 @@ import { STATIONS } from '../data/stations';
 import type { CategoryId, Station } from '../types/station';
 
 import { findStation, randomStation, stationsForCategory } from '../lib/catalog';
-import { audioUrlFor, decideSource, navigateSource } from '../lib/sourcePolicy';
+import { decideSource, isPlayableDecision, navigateSource } from '../lib/sourcePolicy';
 import { shareStation } from '../lib/share';
 import { stationAccent } from '../lib/hero';
 
-import { useAudioPlayer } from '../hooks/useAudioPlayer';
+import { useRadioPlayer } from '../hooks/useRadioPlayer';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { getPlayerManager } from '../services/playerManager';
 
 import { TopNav } from '../components/TopNav';
 import { CinematicHero } from '../components/CinematicHero';
 import type { PlayerState } from '../components/CinematicHero';
 import { FloatingPlayer } from '../components/FloatingPlayer';
+import { EngineDock } from '../components/EngineDock';
 import { SearchOverlay } from '../components/SearchOverlay';
 import { StationInfoModal } from '../components/StationInfoModal';
 import { HelpOverlay } from '../components/HelpOverlay';
-import { SupportView } from '../components/SupportView';
 import { Toast } from '../components/Toast';
 
 const queryParam = (name: string): string | null =>
@@ -55,7 +56,6 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [supportOpen, setSupportOpen] = useState(false);
   const [playerExpanded, setPlayerExpanded] = useState(false);
   const [playerMinimized, setPlayerMinimized] = useState(false);
   const [compact, setCompact] = useState(false);
@@ -101,7 +101,7 @@ export default function App() {
   // latest `step` without re-creating the audio element.
   const stepRef = useRef<(direction: 1 | -1) => void>(() => {});
   const advanceRef = useRef<(direction: 1 | -1) => void>(() => {});
-  const player = useAudioPlayer({ onEnded: () => advanceRef.current(1) });
+  const player = useRadioPlayer({ onEnded: () => advanceRef.current(1) });
   const playerRef = useRef(player);
   playerRef.current = player;
 
@@ -121,9 +121,9 @@ export default function App() {
     }
 
     if (autoplay) {
-      const audioUrl = audioUrlFor(station);
-      if (audioUrl) {
-        playerRef.current.load(station.id, audioUrl);
+      const decision = decideSource(station);
+      if (isPlayableDecision(decision)) {
+        playerRef.current.load(station.id, decision);
         void playerRef.current.play();
       }
     }
@@ -131,13 +131,15 @@ export default function App() {
 
   const startStation = useCallback(
     async (station: Station) => {
-      const audioUrl = audioUrlFor(station);
-      if (!audioUrl) {
+      const decision = decideSource(station);
+      if (!isPlayableDecision(decision)) {
         notify('This station opens on its own page — nothing plays here.');
         navigateSource(station);
         return;
       }
-      if (playerRef.current.stationId !== station.id) playerRef.current.load(station.id, audioUrl);
+      if (playerRef.current.stationId !== station.id) {
+        playerRef.current.load(station.id, decision);
+      }
       await playerRef.current.play();
     },
     [notify],
@@ -146,8 +148,8 @@ export default function App() {
   const togglePlay = useCallback(async () => {
     const station = selected;
     if (!station) return;
-    const audioUrl = audioUrlFor(station);
-    if (!audioUrl) {
+    const decision = decideSource(station);
+    if (!isPlayableDecision(decision)) {
       notify('This station opens on its own page — nothing plays here.');
       navigateSource(station);
       return;
@@ -168,7 +170,7 @@ export default function App() {
       const flagship = findStation(CATEGORY_MAP[id]?.flagship);
       if (!flagship) return;
       const keepListening = playerRef.current.status === 'playing';
-      goTo(flagship, keepListening && decideSource(flagship).kind === 'play');
+      goTo(flagship, keepListening && isPlayableDecision(decideSource(flagship)));
     },
     [goTo],
   );
@@ -218,7 +220,7 @@ export default function App() {
     (station: Station) => {
       const decision = decideSource(station);
       goTo(station);
-      if (decision.kind === 'play') {
+      if (isPlayableDecision(decision)) {
         void startStation(station);
       } else {
         navigateSource(station);
@@ -261,45 +263,47 @@ export default function App() {
   const openSearch = useCallback(() => {
     setHelpOpen(false);
     setInfoOpen(false);
-    setSupportOpen(false);
     setSearchOpen(true);
-  }, []);
-
-  const openSupport = useCallback(() => {
-    setSearchOpen(false);
-    setInfoOpen(false);
-    setHelpOpen(false);
-    setSupportOpen(true);
   }, []);
 
   const closeOverlays = useCallback(() => {
     setSearchOpen(false);
     setInfoOpen(false);
     setHelpOpen(false);
-    setSupportOpen(false);
   }, []);
+
+  /** Spotify embeds expose no volume API — say so instead of pretending to work. */
+  const volumeGuard = useCallback(
+    (action: () => void) => {
+      if (!playerRef.current.hasVolume) {
+        notify('This station plays through the Spotify player — use the volume inside it.');
+        return;
+      }
+      action();
+    },
+    [notify],
+  );
 
   useKeyboardShortcuts({
     togglePlay: () => void togglePlay(),
     previous: () => stepOrSeek(-1),
     next: () => stepOrSeek(1),
-    toggleMute: player.toggleMute,
+    toggleMute: () => volumeGuard(() => player.toggleMute()),
     openSearch,
     toggleHelp: () => {
       setInfoOpen(false);
       setSearchOpen(false);
-      setSupportOpen(false);
       setHelpOpen((open) => !open);
     },
     share: () => void share(selected),
     surprise,
     closeOverlays,
-    volumeUp: () => player.setVolume(player.volume + 0.1),
-    volumeDown: () => player.setVolume(player.volume - 0.1),
+    volumeUp: () => volumeGuard(() => player.setVolume(player.volume + 0.1)),
+    volumeDown: () => volumeGuard(() => player.setVolume(player.volume - 0.1)),
   });
 
   const isCurrentTrack = Boolean(selected && player.stationId === selected.id);
-  const canPlay = Boolean(selected && decideSource(selected).kind === 'play');
+  const canPlay = Boolean(selected && isPlayableDecision(decideSource(selected)));
 
   const playerState: PlayerState = !browserOnline
     ? 'offline'
@@ -318,6 +322,10 @@ export default function App() {
   const audible = player.status === 'playing' || player.status === 'loading';
   const playerStation = !loadedStation ? selected : audible ? loadedStation : selected;
 
+  // Provider stations keep their official iframe visible above the pill.
+  const dockProvider =
+    player.engine === 'youtube' || player.engine === 'spotify' ? player.engine : null;
+
   const serviceLinks = (selected?.externalLinks ?? []).filter((link) =>
     /spotify|youtube/i.test(link.label),
   );
@@ -333,7 +341,6 @@ export default function App() {
         serviceLinks={serviceLinks}
         onOpenSearch={openSearch}
         onOpenHelp={() => setHelpOpen(true)}
-        onOpenSupport={openSupport}
       />
 
       <main>
@@ -368,6 +375,9 @@ export default function App() {
         volume={player.volume}
         muted={player.muted}
         canPlay={canPlay}
+        provider={dockProvider}
+        trackTitle={player.trackTitle}
+        hasVolume={player.hasVolume}
         expanded={playerExpanded}
         minimized={playerMinimized}
         queue={pool}
@@ -381,6 +391,15 @@ export default function App() {
         onSeek={player.seek}
         onPick={handleSelect}
       />
+
+      {dockProvider && playerStation ? (
+        <EngineDock
+          manager={getPlayerManager()}
+          provider={dockProvider}
+          trackTitle={player.trackTitle}
+          stationName={playerStation.name}
+        />
+      ) : null}
 
       <SearchOverlay
         open={searchOpen}
@@ -397,12 +416,6 @@ export default function App() {
       />
 
       <HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
-
-      <SupportView
-        open={supportOpen}
-        artwork={selected?.artwork ?? null}
-        onClose={() => setSupportOpen(false)}
-      />
 
       <Toast message={toast} />
 

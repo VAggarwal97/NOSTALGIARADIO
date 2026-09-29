@@ -164,9 +164,3 @@ export const YoutubeIcon = (p: IconProps) => (
     <path d="M10.6 9.6v4.8L14.7 12z" fill="currentColor" stroke="none" />
   </svg>
 );
-
-export const HeartIcon = (p: IconProps) => (
-  <svg {...base(p)}>
-    <path d="M12 19.6c-1.4-1-5.4-3.7-6.8-7A3.9 3.9 0 0 1 12 7.4a3.9 3.9 0 0 1 6.8 5.2c-1.4 3.3-5.4 6-6.8 7Z" />
-  </svg>
-);

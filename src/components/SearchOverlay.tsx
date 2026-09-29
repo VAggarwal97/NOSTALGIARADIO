@@ -3,7 +3,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { Station } from '../types/station';
 import { CATEGORY_MAP } from '../data/categories';
 import { searchStations } from '../lib/catalog';
-import { decideSource } from '../lib/sourcePolicy';
+import { decideSource, isPlayableDecision } from '../lib/sourcePolicy';
 import { CloseIcon, SearchIcon, ShuffleIcon } from './Icons';
 
 interface SearchOverlayProps {
@@ -114,7 +114,7 @@ export function SearchOverlay({ open, onClose, onPick, onSurprise }: SearchOverl
                     </span>
                   </span>
                   <span className="result-meta">
-                    {decision.kind === 'play'
+                    {isPlayableDecision(decision)
                       ? 'Play'
                       : decision.kind === 'check'
                         ? 'Check'

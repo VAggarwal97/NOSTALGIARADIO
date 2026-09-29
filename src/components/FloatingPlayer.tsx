@@ -22,6 +22,12 @@ interface FloatingPlayerProps {
   volume: number;
   muted: boolean;
   canPlay: boolean;
+  /** Active provider embed, when the loaded station plays through one. */
+  provider?: 'youtube' | 'spotify' | null;
+  /** Real provider-reported track title, when available. */
+  trackTitle?: string | null;
+  /** False when the provider exposes no volume API — the control is hidden, not faked. */
+  hasVolume?: boolean;
   expanded: boolean;
   minimized: boolean;
   /** The stations previous / next traverse — the real queue, not a decoration. */
@@ -68,6 +74,9 @@ export function FloatingPlayer({
   volume,
   muted,
   canPlay,
+  provider = null,
+  trackTitle = null,
+  hasVolume = true,
   expanded,
   minimized,
   queue,
@@ -96,12 +105,16 @@ export function FloatingPlayer({
   const live = state === 'playing';
   const showProgress = isCurrentTrack && duration > 0;
 
-  const title = station?.nowPlaying?.title ?? station?.name ?? 'No station selected';
+  const providerLabel =
+    provider === 'youtube' ? 'YouTube' : provider === 'spotify' ? 'Spotify' : null;
+  const title = trackTitle ?? station?.nowPlaying?.title ?? station?.name ?? 'No station selected';
   const subParts = [stateCopy[state]];
-  if (station?.nowPlaying) subParts.push(station.name);
+  const hasTrackName = Boolean(trackTitle ?? station?.nowPlaying);
+  if (hasTrackName && station) subParts.push(station.name);
   else if (station?.demo) subParts.push('Sample audio');
-  else if (station) subParts.push('Live source');
-  else subParts.push('Pick a station');
+  else if (station && !providerLabel) subParts.push('Live source');
+  if (providerLabel) subParts.push(providerLabel);
+  else if (!station) subParts.push('Pick a station');
 
   return (
     <>
@@ -181,29 +194,31 @@ export function FloatingPlayer({
           </div>
 
           <div className="player-tools">
-            <div className="volume">
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={onToggleMute}
-                aria-pressed={muted}
-                title="Mute (M)"
-              >
-                {muted || volume === 0 ? <MuteIcon size={16} /> : <VolumeIcon size={16} />}
-                <span className="visually-hidden">Mute</span>
-              </button>
-              <label className="visually-hidden" htmlFor="player-volume">
-                Volume
-              </label>
-              <input
-                id="player-volume"
-                type="range"
-                min={0}
-                max={100}
-                value={muted ? 0 : Math.round(volume * 100)}
-                onChange={(event) => onVolume(Number(event.target.value) / 100)}
-              />
-            </div>
+            {hasVolume ? (
+              <div className="volume">
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={onToggleMute}
+                  aria-pressed={muted}
+                  title="Mute (M)"
+                >
+                  {muted || volume === 0 ? <MuteIcon size={16} /> : <VolumeIcon size={16} />}
+                  <span className="visually-hidden">Mute</span>
+                </button>
+                <label className="visually-hidden" htmlFor="player-volume">
+                  Volume
+                </label>
+                <input
+                  id="player-volume"
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={muted ? 0 : Math.round(volume * 100)}
+                  onChange={(event) => onVolume(Number(event.target.value) / 100)}
+                />
+              </div>
+            ) : null}
 
             <button
               type="button"
@@ -252,7 +267,11 @@ export function FloatingPlayer({
             </>
           ) : (
             <div className="progress-time">
-              <span>{station ? 'Live source · no duration reported' : 'Nothing loaded'}</span>
+              <span>
+                {station
+                  ? `${providerLabel ?? 'Live'} source · no duration reported`
+                  : 'Nothing loaded'}
+              </span>
               <span>—</span>
             </div>
           )}

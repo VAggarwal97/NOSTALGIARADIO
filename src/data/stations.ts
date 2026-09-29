@@ -35,7 +35,7 @@ const raw: Station[] = [
     flagship: true,
     titleLines: ['Nostalgia', 'Radio'],
     accent: '#f05a45',
-    description: 'Old roads, local radios and the songs that never really left.',
+    description: 'Old roads. Forgotten songs. New memories.',
     artwork: '/art/neighborhood.svg',
     url: 'https://example.org/nostalgia-radio',
     audioUrl: '/audio/demo-a.wav',

@@ -1,5 +1,6 @@
 import type { ExternalLink } from '../types/station';
-import { SearchIcon, QuestionIcon, SpotifyIcon, YoutubeIcon, HeartIcon } from './Icons';
+import { DONATE_LINK } from '../data/donate';
+import { SearchIcon, QuestionIcon, SpotifyIcon, YoutubeIcon } from './Icons';
 
 interface TopNavProps {
   compact: boolean;
@@ -7,30 +8,25 @@ interface TopNavProps {
   serviceLinks: ExternalLink[];
   onOpenSearch: () => void;
   onOpenHelp: () => void;
-  onOpenSupport: () => void;
 }
 
 const serviceIcon = (label: string) =>
   label.toLowerCase().includes('spotify') ? <SpotifyIcon size={15} /> : <YoutubeIcon size={15} />;
 
+const isExternal = /^https?:\/\//i.test(DONATE_LINK.href);
+
 /**
- * A utility bar, not navigation: brand, service links, support, help, search.
- * Categories deliberately live inside the hero gallery — pressing one re-tunes
+ * A utility bar, not navigation: brand, service links, donate, help, search.
+ * No tagline — photography, type and copy carry the identity instead.
+ * Categories deliberately live inside the hero gallery: pressing one re-tunes
  * the same screen instead of routing anywhere.
  */
-export function TopNav({
-  compact,
-  serviceLinks,
-  onOpenSearch,
-  onOpenHelp,
-  onOpenSupport,
-}: TopNavProps) {
+export function TopNav({ compact, serviceLinks, onOpenSearch, onOpenHelp }: TopNavProps) {
   return (
     <header className="topnav" data-compact={compact}>
       <div className="topnav-inner wrap">
         <a className="brand" href="./" aria-label="Nostalgia Radio — home">
           <span className="brand-name">Nostalgia Radio</span>
-          <span className="brand-micro">No login · No database · Just stations</span>
         </a>
 
         <div className="nav-tools">
@@ -49,10 +45,15 @@ export function TopNav({
             </a>
           ))}
 
-          <button type="button" className="donate-btn" onClick={onOpenSupport}>
-            <HeartIcon size={15} />
-            <span className="donate-label">Donate</span>
-          </button>
+          {/* Placeholder destination — swap `DONATE_LINK.href` when it exists. */}
+          <a
+            className="donate-btn"
+            href={DONATE_LINK.href}
+            {...(isExternal ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+            title="Support Nostalgia Radio"
+          >
+            {DONATE_LINK.label}
+          </a>
 
           <button type="button" className="icon-btn" onClick={onOpenHelp} title="Keyboard controls (?)">
             <QuestionIcon />

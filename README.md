@@ -11,8 +11,7 @@ Vite + React + TypeScript · one page · no login · no database · static CDN d
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ NOSTALGIA RADIO                          ♪ 𝘈   ♥ DONATE   ?   ⌕      │
-│ NO LOGIN · NO DATABASE · JUST STATIONS                                │
+│ NOSTALGIA RADIO                          ♪ 𝘈   DONATE   ?   ⌕        │
 │                                                                      │
 │  ● ON AIR                         ┌ EXPLORE THE RADIO ────────────┐  │
 │  TRAVEL · ROAD · PEOPLE · MEMORIES │ MIX   TRAVEL  BEYOND  FOLK    │  │
@@ -49,10 +48,10 @@ Vite + React + TypeScript · one page · no login · no database · static CDN d
   artwork, track/station, transport, volume, a real queue of the current station set, and a
   progress line that renders **only** when the audio reports a real duration. It can minimise
   into a small `◉ Now Playing` chip. Mobile: compact rounded bar → expands in place.
-- **Donate** opens an in-app support view (`Keep the radio alive`) with preset/custom amounts
-  and a single configurable payment link (`src/data/support.ts`) — no account, no stored data,
-  and the radio keeps playing underneath.
-- **Overlays only**: search, station details, keyboard help, support, toasts.
+- **Donate is a reserved slot, not a flow (V1)**: a navbar button pointing at a configurable
+  destination (`src/data/donate.ts`, currently the `#` placeholder). No donation page, form or
+  payment code — swap the `href` when the real link exists.
+- **Overlays only**: search, station details, keyboard help, toasts.
 
 Deliberately absent: rails/grids of cards, category sections, footer blocks, sidebars,
 category pages, logins, avatars, wishlists, dashboards, notifications, admin/analytics
@@ -117,14 +116,18 @@ public/
 src/
   app/App.tsx             single-screen shell: hero + player + overlays
   components/             TopNav (utility bar + Donate), CinematicHero, StationGallery,
-                          FloatingPlayer, SearchOverlay, StationInfoModal, HelpOverlay,
-                          SupportView, Toast, Icons
+                          FloatingPlayer, EngineDock (official provider iframe host),
+                          SearchOverlay, StationInfoModal, HelpOverlay, Toast, Icons
   data/categories.ts      8 station selectors: MIX · TRAVEL · BEYOND · FOLK · AMBIENT ·
                           FESTIVALS · WORK · SHOP — each with `flagship` + `accent`
   data/stations.ts        station inventory (replace with the full source inventory)
-  data/support.ts         donate amounts, support copy and the payment link to swap in
-  hooks/                  useAudioPlayer, useKeyboardShortcuts
+  data/donate.ts          the configurable DONATE destination (placeholder in V1)
+  hooks/                  useRadioPlayer (one API over both engines), useAudioPlayer,
+                          useKeyboardShortcuts
   lib/                    catalog, hero (title/eyebrow/accent), sourcePolicy, urlSafety, share
+  services/               playerManager (engine orchestration + React subscription),
+                          youtubePlayer / spotifyPlayer (official embed APIs),
+                          engine (shared contract), scriptLoader (one tag per API)
   styles/                 tokens.css (palette/type) + globals.css (layout & components)
   types/station.ts        the data model
 ```
@@ -147,6 +150,8 @@ to change. Schema:
   artwork: '/art/highway.svg', // local /art/*.svg — validated to exist on disk
   url: 'https://…',           // station's own page (validated: http/https only)
   audioUrl: '/audio/…',       // required when action === 'play'
+  provider?: 'youtube' | 'spotify',   // official embed playback (see below)
+  playlistUrl?: 'https://www.youtube.com/playlist?list=…',  // must match `provider`
   action: 'play' | 'check',
   sourceType: 'direct-audio' | 'external-site' | 'embed',
   status?: 'ready' | 'offline' | 'unknown',
@@ -169,14 +174,48 @@ licensed song. Source pages are `https://example.org/…` placeholders — the v
 (never fails) on them so a real inventory paste goes straight through CI.
 
 **Licensing rule enforced by design:** the app only plays `audioUrl` values that the project is
-authorised to stream, opens external stations in a new tab, and shows *Check* rather than
-faking playback for unavailable sources. No scraping, proxying or re-hosting.
+authorised to stream, drives provider stations only through their official embeds, opens
+external stations in a new tab, and shows *Check* rather than faking playback for unavailable
+sources. No scraping, proxying or re-hosting.
+
+## Music sources: YouTube & Spotify
+
+A station can play through the provider's **own embed** — configured entirely in
+`src/data/stations.ts`, no component edits:
+
+```ts
+{
+  id: 'musafir',
+  provider: 'youtube',                 // or 'spotify'
+  playlistUrl: 'https://www.youtube.com/playlist?list=…',   // the playlist page
+  sourceType: 'embed',
+}
+```
+
+- **YouTube** uses the official
+  [IFrame Player API](https://developers.google.com/youtube/iframe_api_reference)
+  (`cuePlaylist` + `playVideo`); the playlist auto-advances inside the embed.
+  **Spotify** uses the official
+  [iFrame API](https://developer.spotify.com/documentation/embeds)
+  (`createController` / `loadEntity`). Playback logic never leaves the providers.
+- The iframe is **visible and labelled** in an engine dock above the pill — the UI never
+  disguises a hidden provider player as its own. Selecting another station swaps the
+  playlist inside the same iframe; leaving provider playback destroys it.
+- The pill mirrors only real provider state: real track title + duration from YouTube,
+  real progress from Spotify (`playback_update`). Spotify exposes no title/volume API,
+  so the pill hides the volume control on those stations instead of pretending.
+- Placeholder IDs (`YOUR_PLAYLIST_ID`) are treated as *not configured* at runtime and
+  warned about by CI; unconfigured stations keep their current source-page behaviour.
+- The provider scripts load **lazily**: no request to youtube.com / spotify.com happens
+  until such a station is actually selected, and the CSP allows exactly those two hosts.
 
 ## Security
 
 - Baseline CSP in `index.html` (meta) and `public/_headers` (HTTP): `default-src 'self'`,
   `media-src 'self' https:` (same-origin sample audio today, authorised HTTPS streams later),
-  `frame-src 'none'`, `object-src 'none'`, `frame-ancestors 'none'`, `nosniff`,
+  `frame-src` allowlist of exactly the two playback providers (`youtube.com`,
+  `youtube-nocookie.com`, `open.spotify.com`), matching `script-src` additions for their
+  official API scripts, `object-src 'none'`, `frame-ancestors 'none'`, `nosniff`,
   `Referrer-Policy: strict-origin-when-cross-origin`, Permissions-Policy with camera/mic/
   location/payment disabled. HSTS is commented out until the domain is confirmed HTTPS-only.
 - Every URL passes `src/lib/urlSafety.ts` before render or navigation

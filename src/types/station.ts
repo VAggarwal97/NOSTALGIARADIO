@@ -14,6 +14,13 @@ export type StationAction = 'play' | 'check';
 export type SourceType = 'external-site' | 'direct-audio' | 'embed';
 
 /**
+ * Official playback providers. Stations configured with one are driven through
+ * the provider's own embed API (YouTube IFrame API / Spotify iFrame API) —
+ * never through scraped, proxied or re-hosted audio.
+ */
+export type ProviderId = 'youtube' | 'spotify';
+
+/**
  * ready   — source validated, playable or openable
  * offline — flagged as not responding: shown as Check, never as playing
  * unknown — not yet verified
@@ -58,6 +65,18 @@ export interface Station {
   url: string;
   /** Direct audio URL. Required when `action === 'play'`. */
   audioUrl?: string;
+  /**
+   * Playback provider when the station is backed by an official playlist.
+   * Together with `playlistUrl` this is the only thing to edit to re-tune a
+   * provider station — no component changes.
+   */
+  provider?: ProviderId;
+  /**
+   * The playlist page on that provider, e.g.
+   * `https://www.youtube.com/playlist?list=…` or
+   * `https://open.spotify.com/playlist/…`. Must match `provider`.
+   */
+  playlistUrl?: string;
   action: StationAction;
   sourceType: SourceType;
   status?: StationStatus;

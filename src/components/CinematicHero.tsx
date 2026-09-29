@@ -1,5 +1,5 @@
 import type { CategoryId, Station } from '../types/station';
-import { decideSource, labelForDecision } from '../lib/sourcePolicy';
+import { decideSource, isPlayableDecision, labelForDecision } from '../lib/sourcePolicy';
 import { heroEyebrow, heroMeta, heroTitle } from '../lib/hero';
 import { PlayIcon, PauseIcon, ShareIcon, InfoIcon, LoadingIcon, PinIcon, ShuffleIcon } from './Icons';
 import { StationGallery } from './StationGallery';
@@ -88,8 +88,7 @@ export function CinematicHero({
   const playingNow = isCurrentTrack && playerState === 'playing';
   const buffering = isCurrentTrack && playerState === 'buffering';
 
-  const primaryLabel =
-    playingNow ? 'Pause' : decision.kind === 'play' ? 'Play' : labelForDecision(decision);
+  const primaryLabel = playingNow ? 'Pause' : labelForDecision(decision);
 
   return (
     <section className="hero" aria-label={`Featured station: ${station.name}`}>
@@ -125,13 +124,13 @@ export function CinematicHero({
                 {meta.join(' · ')}
               </span>
               {station.demo ? <span>Sample audio</span> : null}
-              {decision.kind === 'play' ? null : <span>Source page</span>}
+              {isPlayableDecision(decision) ? null : <span>Source page</span>}
             </div>
 
             <div className="hero-actions">
               <button
                 type="button"
-                className={`cta ${decision.kind === 'play' ? 'cta--primary' : 'cta--secondary'}`}
+                className={`cta ${isPlayableDecision(decision) ? 'cta--primary' : 'cta--secondary'}`}
                 onClick={onPrimary}
                 disabled={decision.kind === 'blocked'}
               >

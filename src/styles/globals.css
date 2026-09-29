@@ -151,19 +151,7 @@ img {
   text-transform: uppercase;
 }
 
-.brand-micro {
-  font-family: var(--font-mono);
-  font-size: 0.625rem;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-top: 6px;
-  white-space: nowrap;
-}
-
-.topnav[data-compact='true'] .brand-micro {
-  display: none;
-}
+/* No tagline under the wordmark — the design speaks for the brand. */
 
 /* Categories live inside the hero gallery — the header stays a utility bar. */
 .nav-tools {
@@ -214,27 +202,31 @@ img {
   color: var(--ivory);
 }
 
-/* Support — the one deliberate brand-colour action in the header. */
+/*
+ * Donate is a reserved slot, not a flow: the same treatment as the other
+ * utility links, pointing at a configurable destination (see src/data/donate.ts).
+ */
 .donate-btn {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
   min-height: 40px;
   padding: 0 16px;
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-pill);
-  background: #f05a45;
-  color: #140f0b;
+  color: var(--ivory);
   font-family: var(--font-mono);
   font-size: 0.6875rem;
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur) var(--ease);
+  text-decoration: none;
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
 }
 
 .donate-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 26px rgba(240, 90, 69, 0.32);
+  border-color: var(--accent);
+  background: rgba(244, 235, 221, 0.06);
 }
 
 /* ── Cinematic hero — the page's identity ───────────────────────────────── */
@@ -853,6 +845,90 @@ img {
   }
 }
 
+/* ── Provider engine dock — the official iframe, visible and labelled ────── */
+.engine-dock {
+  position: fixed;
+  left: 50%;
+  bottom: 172px;
+  transform: translateX(-50%);
+  z-index: 69;
+  width: min(340px, calc(100% - 48px));
+  padding: 10px;
+  border-radius: 20px;
+  background: var(--glass);
+  backdrop-filter: blur(26px) saturate(1.35);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--shadow-player);
+  animation: player-in var(--dur-sheet) var(--ease);
+}
+
+.engine-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 0 4px 8px;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  min-width: 0;
+}
+
+.engine-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ivory);
+  white-space: nowrap;
+}
+
+.engine-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-text);
+  animation: pulse 2.4s ease-in-out infinite;
+}
+
+.engine-now {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  text-align: right;
+}
+
+.engine-frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #000;
+  border: 1px solid var(--border);
+}
+
+.engine-dock[data-provider='youtube'] .engine-frame {
+  aspect-ratio: 16 / 9;
+}
+
+.engine-dock[data-provider='spotify'] .engine-frame {
+  height: 152px;
+}
+
+.engine-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* The dock occupies the strip the keyboard hints sit in. */
+.shell:has(.engine-dock) .hero-hints {
+  display: none;
+}
+
 .player-art {
   width: 64px;
   height: 64px;
@@ -1379,234 +1455,6 @@ img {
   }
 }
 
-/* ── Support view — the donate destination, still one screen ─────────────── */
-
-.support {
-  position: fixed;
-  inset: 0;
-  z-index: 95;
-  overflow-y: auto;
-  background: var(--bg);
-  animation: overlay-in var(--dur) var(--ease);
-}
-
-.support-art {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 0.22;
-}
-
-.support-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  background:
-    radial-gradient(120% 80% at 72% 8%, rgba(240, 90, 69, 0.1), transparent 60%),
-    linear-gradient(180deg, rgba(5, 4, 4, 0.86) 0%, rgba(5, 4, 4, 0.94) 60%, var(--bg) 100%);
-}
-
-.support-inner {
-  position: relative;
-  z-index: 2;
-  padding-block: clamp(5rem, 12vh, 8rem) clamp(4rem, 10vh, 7rem);
-}
-
-.support-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  margin-bottom: clamp(2rem, 6vh, 3.5rem);
-}
-
-.support-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-  gap: clamp(2rem, 5vw, 4.5rem);
-  align-items: start;
-}
-
-.support-title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: clamp(2.75rem, 6vw, 5rem);
-  line-height: 0.94;
-  letter-spacing: -0.01em;
-}
-
-.support-title .line-2 {
-  display: block;
-  color: #f05a45;
-}
-
-.support-lead {
-  margin: var(--space-4) 0 0;
-  max-width: 52ch;
-  font-size: var(--size-lead);
-  color: var(--cream);
-}
-
-.support-amounts {
-  margin: var(--space-6) 0 0;
-  padding: 0;
-  border: 0;
-}
-
-.support-legend {
-  padding: 0;
-  margin-bottom: var(--space-3);
-  font-family: var(--font-mono);
-  font-size: var(--size-meta);
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.amount-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.amount-chip {
-  min-height: 52px;
-  padding: 0 22px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  background: rgba(13, 12, 11, 0.55);
-  color: var(--cream);
-  font-family: var(--font-mono);
-  font-size: 0.9375rem;
-  letter-spacing: 0.04em;
-  transition: all var(--dur-fast) var(--ease);
-}
-
-.amount-chip:hover {
-  border-color: var(--border-strong);
-  color: var(--ivory);
-}
-
-.amount-chip[aria-pressed='true'] {
-  background: #f05a45;
-  border-color: #f05a45;
-  color: #140f0b;
-  font-weight: 500;
-}
-
-.amount-custom {
-  display: grid;
-  gap: 8px;
-  margin-top: var(--space-4);
-  max-width: 260px;
-}
-
-.amount-custom > span:first-child {
-  font-family: var(--font-mono);
-  font-size: var(--size-meta);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.amount-field {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 52px;
-  padding: 0 18px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  background: rgba(13, 12, 11, 0.55);
-  color: var(--ivory);
-}
-
-.amount-field:focus-within {
-  border-color: #f05a45;
-}
-
-.amount-field input {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font-family: var(--font-mono);
-  font-size: 1rem;
-  outline: none;
-}
-
-.amount-field input[type='number'] {
-  appearance: textfield;
-  -moz-appearance: textfield;
-}
-
-.amount-field input::-webkit-outer-spin-button,
-.amount-field input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.support-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
-  margin-top: var(--space-6);
-}
-
-.support-note {
-  margin: var(--space-4) 0 0;
-  max-width: 46ch;
-  font-size: 0.8125rem;
-  color: var(--muted);
-}
-
-.support-aside {
-  padding: clamp(1.25rem, 2vw, 1.75rem);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: rgba(13, 12, 11, 0.6);
-  backdrop-filter: blur(14px);
-}
-
-.support-uses {
-  list-style: none;
-  margin: var(--space-4) 0 0;
-  padding: 0;
-  display: grid;
-  gap: 14px;
-}
-
-.support-uses li {
-  display: flex;
-  gap: 12px;
-  align-items: baseline;
-  font-size: 0.9375rem;
-  color: var(--cream);
-}
-
-.support-uses li span {
-  font-family: var(--font-mono);
-  font-size: 0.625rem;
-  letter-spacing: 0.16em;
-  color: var(--accent-2);
-}
-
-.support-quote {
-  margin: var(--space-5) 0 0;
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border);
-  font-family: var(--font-display);
-  font-size: 1.2rem;
-  font-style: italic;
-  line-height: 1.45;
-  color: var(--ivory);
-  opacity: 0.85;
-}
-
 /* ── Responsive ─────────────────────────────────────────────────────────── */
 
 @media (max-width: 1439px) {
@@ -1642,10 +1490,6 @@ img {
     gap: var(--space-3);
   }
 
-  .brand-micro {
-    display: none;
-  }
-
   .volume input[type='range'] {
     width: 64px;
   }
@@ -1675,17 +1519,13 @@ img {
     scroll-snap-align: start;
   }
 
-  .support-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .nav-tools .service-btn {
     display: none;
   }
 }
 
 @media (max-width: 520px) {
-  /* Narrow phones: brand + icon-only donate + utilities, no horizontal overflow. */
+  /* Narrow phones: brand + donate + utilities, no horizontal overflow. */
   .brand-name {
     font-size: 1.15rem;
     letter-spacing: 0.08em;
@@ -1693,15 +1533,6 @@ img {
 
   .donate-btn {
     padding: 0 13px;
-  }
-
-  .donate-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
   }
 }
 
@@ -1805,6 +1636,20 @@ img {
   .now-playing {
     right: 12px;
     bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Above the compact pill; slides beneath it while the pill is expanded. */
+  .engine-dock {
+    left: 12px;
+    right: 12px;
+    bottom: calc(110px + env(safe-area-inset-bottom, 0px));
+    width: auto;
+    transform: none;
+    animation: none;
+  }
+
+  .player[data-expanded='true'] + .engine-dock {
+    bottom: calc(215px + env(safe-area-inset-bottom, 0px));
   }
 
   .toast {
