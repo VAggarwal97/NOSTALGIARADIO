@@ -110,24 +110,34 @@ describe('song link parsing', () => {
 describe('suggestion queue', () => {
   const youtubeUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
   const spotifyUrl = 'https://open.spotify.com/track/6rqhFgbbKwnb9MLmUQDhG6';
+  const meta = (title: string, artist = 'Test Artist') => ({ title, artist, artwork: null });
 
   it('submits, deduplicates by identity and lists newest first', async () => {
     let now = 1_000;
     const api = createLocalRequestApi(() => now);
 
-    const first = await api.submit({ url: youtubeUrl, stationId: 'rain-window' });
+    const first = await api.submit({
+      url: youtubeUrl,
+      meta: meta('Never Gonna Give You Up'),
+      stationId: 'rain-window',
+    });
     expect(first.ok).toBe(true);
 
     // Same video, different share params — still the same song.
     now = 2_000;
     const duplicate = await api.submit({
       url: `${youtubeUrl}&si=zzz`,
+      meta: meta('Never Gonna Give You Up'),
       stationId: 'rain-window',
     });
     expect(duplicate).toEqual({ ok: false, reason: 'duplicate' });
 
     now = 3_000;
-    const second = await api.submit({ url: spotifyUrl, stationId: null });
+    const second = await api.submit({
+      url: spotifyUrl,
+      meta: meta('Spotify Song'),
+      stationId: null,
+    });
     expect(second.ok).toBe(true);
 
     const list = await api.list();
@@ -138,7 +148,11 @@ describe('suggestion queue', () => {
 
   it('refuses garbage links as invalid-url', async () => {
     const api = createLocalRequestApi();
-    const result = await api.submit({ url: 'https://example.com/anything', stationId: null });
+    const result = await api.submit({
+      url: 'https://example.com/anything',
+      meta: meta('Anything'),
+      stationId: null,
+    });
     expect(result).toEqual({ ok: false, reason: 'invalid-url' });
   });
 
@@ -149,6 +163,7 @@ describe('suggestion queue', () => {
       now = index * 1_000;
       const result = await api.submit({
         url: `https://www.youtube.com/watch?v=aaaaaaaaa${index}0`,
+        meta: meta(`Song ${index}`),
         stationId: null,
       });
       expect(result.ok).toBe(true);
@@ -156,6 +171,7 @@ describe('suggestion queue', () => {
     now = 4_000;
     const burst = await api.submit({
       url: 'https://www.youtube.com/watch?v=bbbbbbbbb10',
+      meta: meta('Burst'),
       stationId: null,
     });
     expect(burst).toEqual({ ok: false, reason: 'rate-limited' });
@@ -164,6 +180,7 @@ describe('suggestion queue', () => {
     now = 61_000;
     const later = await api.submit({
       url: 'https://www.youtube.com/watch?v=ccccccccc10',
+      meta: meta('Later'),
       stationId: null,
     });
     expect(later.ok).toBe(true);

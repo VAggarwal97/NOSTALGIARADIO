@@ -14,8 +14,10 @@ import { useRadioPlayer } from '../hooks/useRadioPlayer';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { usePresence } from '../hooks/usePresence';
 import { getPlayerManager } from '../services/playerManager';
+import { routeFromPathname, suggestHref } from '../lib/routes';
+import type { RouteName } from '../lib/routes';
 
-import { TopNav } from '../components/TopNav';
+import { HomeNav } from '../components/HomeNav';
 import { CinematicHero } from '../components/CinematicHero';
 import type { PlayerState } from '../components/CinematicHero';
 import { FloatingPlayer } from '../components/FloatingPlayer';
@@ -24,12 +26,12 @@ import { CommunityControls } from '../components/CommunityControls';
 import { StationInfoModal } from '../components/StationInfoModal';
 import { HelpOverlay } from '../components/HelpOverlay';
 import { Toast } from '../components/Toast';
+import { SuggestPage } from '../components/SuggestPage';
 
 /* Secondary systems download on demand — first paint never waits for them. */
 const SearchOverlay = lazy(() =>
   import('../components/SearchOverlay').then((module) => ({ default: module.SearchOverlay })),
 );
-const SuggestModal = lazy(() => import('../components/SuggestModal'));
 
 const queryParam = (name: string): string | null =>
   typeof window === 'undefined'
@@ -60,10 +62,14 @@ export default function App() {
   const [category, setCategory] = useState<CategoryId>(initial.category);
   const [selected, setSelected] = useState<Station | null>(initial.station);
 
+  // Two views, one shell: the radio screen and the community request wall.
+  const [route, setRoute] = useState<RouteName>(() =>
+    typeof window === 'undefined' ? 'home' : routeFromPathname(window.location.pathname),
+  );
+
   const [searchOpen, setSearchOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [suggestOpen, setSuggestOpen] = useState(false);
   const [playerExpanded, setPlayerExpanded] = useState(false);
   const [playerMinimized, setPlayerMinimized] = useState(false);
   const [compact, setCompact] = useState(false);
@@ -82,6 +88,26 @@ export default function App() {
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  /**
+   * History-API navigation between the two views: no reload, no lost player
+   * state, and the back button behaves exactly as a visitor expects.
+   */
+  const navigate = useCallback((path: string) => {
+    try {
+      window.history.pushState({}, '', path);
+    } catch {
+      /* file:// or sandboxed context — links still work natively */
+    }
+    setRoute(routeFromPathname(window.location.pathname));
+    window.scrollTo(0, 0);
+  }, []);
+
+  useEffect(() => {
+    const onPop = () => setRoute(routeFromPathname(window.location.pathname));
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
   }, []);
 
   useEffect(() => {
@@ -274,7 +300,6 @@ export default function App() {
   const openSearch = useCallback(() => {
     setHelpOpen(false);
     setInfoOpen(false);
-    setSuggestOpen(false);
     setSearchOpen(true);
   }, []);
 
@@ -282,7 +307,6 @@ export default function App() {
     setSearchOpen(false);
     setInfoOpen(false);
     setHelpOpen(false);
-    setSuggestOpen(false);
   }, []);
 
   /** Spotify embeds expose no volume API — say so instead of pretending to work. */
@@ -306,7 +330,6 @@ export default function App() {
     toggleHelp: () => {
       setInfoOpen(false);
       setSearchOpen(false);
-      setSuggestOpen(false);
       setHelpOpen((open) => !open);
     },
     share: () => void share(selected),
@@ -340,50 +363,53 @@ export default function App() {
   const dockProvider =
     player.engine === 'youtube' || player.engine === 'spotify' ? player.engine : null;
 
-  const serviceLinks = (selected?.externalLinks ?? []).filter((link) =>
-    /spotify|youtube/i.test(link.label),
-  );
-
   const shellStyle = {
     '--accent': selected ? stationAccent(selected) : undefined,
   } as CSSProperties;
 
   return (
     <div className="shell grain" style={shellStyle}>
-      <TopNav
+      <HomeNav
         compact={compact}
-        serviceLinks={serviceLinks}
-        onOpenSearch={openSearch}
-        onOpenHelp={() => setHelpOpen(true)}
-        onSuggest={() => setSuggestOpen(true)}
+        route={route}
+        onNavigate={navigate}
+        onSearch={openSearch}
+        onHelp={() => setHelpOpen(true)}
       />
 
-      <main>
-        <CinematicHero
-          station={selected}
-          playerState={playerState}
-          isCurrentTrack={isCurrentTrack}
-          activeCategory={category}
-          listeners={listeners}
-          onPrimary={() => {
-            if (!selected) return;
-            // CTA reads "Pause" while this station is audible — toggle, don't restart.
-            if (isCurrentTrack && (playerState === 'playing' || playerState === 'buffering')) {
-              void togglePlay();
-            } else {
-              handlePrimary(selected);
-            }
-          }}
-          onShare={() => void share(selected)}
-          onInfo={() => setInfoOpen(true)}
-          onSurprise={surprise}
-          onSelectCategory={selectCategory}
-          onExploreAll={openSearch}
-        />
-      </main>
+      {route === 'suggest' ? (
+        <SuggestPage station={selected} onNotify={notify} />
+      ) : (
+        <main>
+          <CinematicHero
+            station={selected}
+            playerState={playerState}
+            isCurrentTrack={isCurrentTrack}
+            activeCategory={category}
+            listeners={listeners}
+            onPrimary={() => {
+              if (!selected) return;
+              // CTA reads "Pause" while this station is audible — toggle, don't restart.
+              if (isCurrentTrack && (playerState === 'playing' || playerState === 'buffering')) {
+                void togglePlay();
+              } else {
+                handlePrimary(selected);
+              }
+            }}
+            onShare={() => void share(selected)}
+            onInfo={() => setInfoOpen(true)}
+            onSurprise={surprise}
+            onSelectCategory={selectCategory}
+            onExploreAll={openSearch}
+          />
+        </main>
+      )}
 
       {/* Participate controls sit beside the player — never inside it. */}
-      <CommunityControls station={selected} onSuggest={() => setSuggestOpen(true)} />
+      <CommunityControls
+        station={selected}
+        onSuggest={() => navigate(suggestHref())}
+      />
 
       <FloatingPlayer
         station={playerStation}
@@ -428,12 +454,6 @@ export default function App() {
             onPick={handleSelect}
             onSurprise={surprise}
           />
-        </Suspense>
-      ) : null}
-
-      {suggestOpen ? (
-        <Suspense fallback={null}>
-          <SuggestModal station={selected} onClose={() => setSuggestOpen(false)} />
         </Suspense>
       ) : null}
 

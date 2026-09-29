@@ -1,17 +1,18 @@
 # Nostalgia Radio
 
-A **single-screen cinematic radio experience** with an old Indian radio/cassette soul.
-Vite + React + TypeScript · one page · no login · no database · static CDN deploy.
+A **cinematic radio experience** with an old Indian radio/cassette soul — the listening
+screen, plus the community wall at `/suggest-music`.
+Vite + React + TypeScript · two views · no login · no database · static CDN deploy.
 
 > **Design direction:** *"You opened a radio station, not a website containing radio
 > stations."* The artwork is the page, the station identity is the hero, the player is the
 > primary interaction, and everything else stays out of the way.
 
-## The screen (one page, no templates)
+## The screen (two views, no templates)
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ NOSTALGIA RADIO               SUGGEST  ♪ 𝘈   DONATE   ?   ⌕             │
+│ NOSTALGIA RADIO  Suggest music  Spotify ↗  YouTube Music ↗  Donate  ?  ⌕ │
 │                                                                          │
 │  ● READY   1 LISTENING            EXPLORE THE RADIO        37 STATIONS   │
 │  TRAVEL · ROAD · PEOPLE · MEMORIES  ┌──────┐ ┌──────┐                     │
@@ -33,18 +34,25 @@ Vite + React + TypeScript · one page · no login · no database · static CDN d
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Header is a utility bar, not navigation**: brand → **Suggest music** · Spotify / YouTube
-  Music (shown only when the station configures them) · **Donate** · help · search. No
-  category links — they moved into the hero. `Suggest music` opens the overlay; it never
-  navigates away.
+- **Header is a text masthead, not an app toolbar**: brand on the left; **Suggest music** ·
+  Spotify ↗ · YouTube Music ↗ · **Donate** · help · search on the right — plain type on a
+  hairline hover underline, no pills, boxes, borders or circular icons, and no category links
+  (they live in the hero). **Suggest music** is a real, shareable link to `/suggest-music`
+  (modified clicks keep their native new-tab behaviour) and reads **Radio** while you are on
+  that view.
 - **The category gallery lives inside the hero.** The right side of the hero is a bounded
   archive viewport of miniature posters — two columns, one card per listening world (artwork,
-  name, one-line tagline, `region · language · era`, status). Pressing TRAVEL swaps the hero
-  to that category's flagship station — artwork, two-line title, copy, metadata, accent and
-  track all crossfade. Same screen, same layout, nothing navigates, nothing reloads. The grid
-  **drifts slowly on its own** (~22 px/s, a seamless loop); wheel, touch, keys, clicks and
-  hover pause it, and it resumes a few idle seconds later — never fighting the user. On
-  mobile it becomes a horizontal snap rail under the station copy — never a sidebar.
+  name, one-line tagline, `region · language · era`, status, a bare `→` that steps right on
+  hover). Pressing TRAVEL swaps the hero to that category's flagship station — artwork,
+  two-line title, copy, metadata, accent and track all crossfade. Same screen, same layout,
+  nothing navigates, nothing reloads. Its header is plain mono type (`EXPLORE THE RADIO` /
+  `37 STATIONS` plus `VIEW ALL 37 →`) — no badge, pill or border. The grid **drifts slowly on
+  its own** (~22 px/s, a seamless loop whose second copy is `aria-hidden` and out of the tab
+  order); wheel, touch, keys, clicks and hover pause it, and it resumes a few idle seconds
+  later — scrolling is native, never hijacked. A 3px hairline scrollbar reveals while you
+  scroll and fades ~800ms after you stop, gradient masks fade the top and bottom rows, and the
+  active card brightens its artwork with a coral glow and a thin coral underline — no borders.
+  On mobile it becomes a horizontal snap rail under the station copy — never a sidebar.
 - **Hero** ≈ 100vh: cinematic artwork with a slow 34s breathing drift and a coral accent
   glow, dark multi-layer scrim, grain, a non-numeric live badge (**READY / LOADING / ON AIR /
   PAUSED / OFFLINE / ERROR** with green/amber/muted/red states) plus the live session count
@@ -57,19 +65,48 @@ Vite + React + TypeScript · one page · no login · no database · static CDN d
   real duration. It can minimise into a small `◉ Now Playing` chip. Mobile: compact rounded
   bar → expands in place. The player owns **playback only**.
 - **Participate controls sit beside the player** (above it on narrow screens, never inside
-  it): `★ 4.4 / 128 ratings` with a small rating popover, and **+ Suggest music**. Rating
-  data and aggregates load asynchronously from the rating API and start honestly empty —
-  `★ Rate · Be the first` until somebody rates.
+  it): `★ 4.4 / 128 ratings` with a small rating popover, and **+ Suggest music**, which
+  navigates to the community wall (`/suggest-music`) — the overlay it once opened is gone.
+  Rating data and aggregates load asynchronously from the rating API and start honestly empty
+  — `★ Rate · Be the first` until somebody rates.
 - **Donate is a reserved slot, not a flow (V1)**: a navbar button pointing at a configurable
   destination (`src/data/donate.ts`, currently the `#` placeholder). No donation page, form or
   payment code — swap the `href` when the real link exists.
-- **Overlays only**: search (command palette), station details, keyboard help, **suggest
-  music**, toasts.
+- **Overlays only**: search (command palette), station details, keyboard help, toasts.
 
 Deliberately absent: rails/grids of cards, category sections, footer blocks, sidebars,
 category pages, logins, avatars, wishlists, dashboards, notifications, admin/analytics
-widgets, filter panels, dense tables, fabricated listener counts or progress, decorative
-controls, autoplay.
+widgets, filter panels, dense tables, fabricated listener counts, progress or vote totals,
+decorative controls, autoplay.
+
+## The community wall: `/suggest-music`
+
+`Suggest music` in the navbar and `+ Suggest music` beside the player both open the second
+view — same shell, same typography, same playing audio (history-API navigation, no reload,
+the current song never stops):
+
+- **Hero**: eyebrow `COMMUNITY RADIO`, the two-line `SUGGEST YOUR MUSIC` title, and a console
+  that accepts **one URL only** — a YouTube video or a Spotify track. The link is resolved
+  through the provider's own oEmbed endpoint *before* you submit, so the preview (title,
+  artist, artwork) is real; a refusal says so instead of guessing.
+- **Duplicate → `VIEW REQUEST`**: an existing request is detected by provider ID (share
+  params normalised away) and the console jumps to it instead of creating a second one.
+- **How it works**: 01 share a song → 02 collect votes → 03 it moves into the radio queue.
+- **The wall**: `WHAT SHOULD PLAY NEXT?` with text tabs — `MOST WANTED` (votes, ties resolve
+  to the earlier submission), `RISING` (recent voting activity), `RECENTLY ADDED`, `PLAYED`
+  — a featured `CURRENTLY LEADING` request, then artwork-dominant cards with `▲ VOTE` →
+  `▲ VOTED`, `SHARE ↗` (native share sheet, clipboard fallback) and inline search. Loading,
+  empty and error states are explicit and **there is no seed data**: an empty board says it is
+  waiting for the first request, and SSR renders no fake vote digits.
+- **Deep links**: `/suggest-music?request=<id>` opens straight to that request (tab switch +
+  highlight) — exactly what `SHARE ↗` copies.
+- **Routing is a history API, not a router dependency**: real `<a href>` links (shareable,
+  middle-clickable, back button behaves normally) with intercepted plain clicks; on static
+  hosts the build copies `index.html` to `dist/suggest-music/index.html`, so a cold load of
+  the URL resolves too.
+
+Votes, statuses, rankings and track metadata all come from `src/lib/request-api.ts` and the
+providers' oEmbed endpoints — the client never computes, trusts or fabricates them.
 
 ## Run
 
@@ -88,9 +125,9 @@ npm run dev          # http://localhost:5173
 | `npm run art` | Regenerate `public/art/*.svg` (12 original procedural scenes) |
 | `npm run validate:content` | Content gate: unique IDs, valid categories, flagship per category (exists · marked · two-line title · accent), artwork on disk, safe URL protocols, required fields, no executable markup |
 | `npm run lint:security` | Same gate in `--strict` mode (warnings fail) |
-| `npm test` | Vitest: URL safety, source policy, catalog/search, spec invariants |
+| `npm test` | Vitest: URL safety, source policy, catalog/search, the request board (dedupe, rate limits, one vote per visitor, ranking rules), provider metadata resolution, spec invariants |
 | `npm run typecheck` | `tsc -b` |
-| `npm run smoke` | Renders the real app to HTML through Vite SSR and asserts the single-screen structure |
+| `npm run smoke` | Renders both views (`/` and `/suggest-music`) to HTML through Vite SSR and asserts structure, honest empty states and no fabricated data |
 | `npm run build` | Validate → typecheck → Vite production build into `dist/` |
 | `npm run ci` | The full gate: validate → test → typecheck → smoke → build |
 | `npm run preview` | Serve the production build |
@@ -98,7 +135,8 @@ npm run dev          # http://localhost:5173
 
 ## Design system
 
-Tokens live in `src/styles/tokens.css`; layout/components in `src/styles/globals.css`.
+Tokens live in `src/styles/tokens.css`; layout/components in `src/styles/globals.css`; the
+community wall in `src/styles/suggest.css` (same tokens, no palette forks).
 
 | Role | Value |
 | --- | --- |
@@ -127,12 +165,12 @@ public/
   audio/                  locally generated sample tracks (no third-party audio)
   manifest.webmanifest    installable app shell
 src/
-  app/App.tsx             single-screen shell: hero + player + overlays
-  components/             TopNav (utility bar + Donate), CinematicHero, StationGallery
+  app/App.tsx             one shell, two views: history-API routing + hero + player + overlays
+  components/             HomeNav (borderless text masthead), CinematicHero, StationGallery
                           (drifting archive), FloatingPlayer, CommunityControls (rating +
                           suggest beside the player), EngineDock (official provider iframe
-                          host), SearchOverlay, StationInfoModal, HelpOverlay, SuggestModal
-                          (lazy), Toast, Icons
+                          host), SearchOverlay, StationInfoModal, HelpOverlay, SuggestPage
+                          (community wall → SuggestConsole + RequestBoard), Toast, Icons
   data/categories.ts      8 station selectors: MIX · TRAVEL · BEYOND · FOLK · AMBIENT ·
                           FESTIVALS · WORK · SHOP — each with `flagship` + `accent`
   data/stations.ts        station inventory (replace with the full source inventory)
@@ -140,12 +178,14 @@ src/
   hooks/                  useRadioPlayer (one API over both engines), useAudioPlayer,
                           useKeyboardShortcuts, usePresence, useStationRating
   lib/                    catalog, hero (title/eyebrow/accent), sourcePolicy, urlSafety,
-                          share, presence-api, rating-api, request-api (API-shaped community
-                          layer with local implementations), id
+                          share, routes (the two view URLs + deep links), track-meta
+                          (provider oEmbed metadata), presence-api, rating-api, request-api
+                          (board/vote API with a local store), id
   services/               playerManager (engine orchestration + React subscription),
                           youtubePlayer / spotifyPlayer (official embed APIs),
                           engine (shared contract), scriptLoader (one tag per API)
-  styles/                 tokens.css (palette/type) + globals.css (layout & components)
+  styles/                 tokens.css (palette/type), globals.css (layout & components),
+                          suggest.css (community wall)
   types/station.ts        the data model
 ```
 
@@ -247,13 +287,21 @@ Three systems sit on top of the static screen. All three follow the same rules: 
   - `src/lib/rating-api.ts` — anonymous session rating, one row per visitor per station
     (`UNIQUE(station_id, visitor_id)` is the backend's job, the local store upserts the
     same way). Aggregates start empty: `count: 0, average: null` until a real rating lands.
-  - `src/lib/request-api.ts` — suggestion queue: `parseSongUrl` accepts **only** a YouTube
-    video or a Spotify track (playlists, albums, channels and unknown hosts are refused),
-    duplicates are detected by provider ID (share params are normalised away), and a
-    per-session rate limit throttles bursts.
+  - `src/lib/request-api.ts` — the community board behind `/suggest-music`: `parseSongUrl`
+    accepts **only** a YouTube video or a Spotify track (playlists, albums, channels and
+    unknown hosts are refused), duplicates are caught by provider ID (share params are
+    normalised away), submits and votes are rate limited, and voting is **one per visitor per
+    request** — a count only moves when the API confirms it. Ranking (`MOST WANTED` votes
+    with earliest-submission tie-break, `RISING` by last vote, `RECENTLY ADDED`,
+    `PLAYED` history) and search live in the API, so the UI can never compute a number.
+    V1's local store syncs snapshots across this browser's tabs over a `BroadcastChannel`
+    (each tab's voter bookkeeping stays local); a backend implementing the same interface
+    drops in later without touching the components. Track metadata (title, artist, artwork)
+    is resolved by `src/lib/track-meta.ts` through each provider's own oEmbed endpoint —
+    a refusal renders an honest unavailable state, never invented tags.
 
 All motion is CSS/`requestAnimationFrame` only — no animation library. Everything secondary
-(search, the suggestion overlay, rating data, presence) is code-split or async, so the first
+(search, rating data, presence, the request board) loads after first paint, so the first
 paint is just the hero, the gallery and the player shell.
 
 ## Security
@@ -262,7 +310,9 @@ paint is just the hero, the gallery and the player shell.
   `media-src 'self' https:` (same-origin sample audio today, authorised HTTPS streams later),
   `frame-src` allowlist of exactly the two playback providers (`youtube.com`,
   `youtube-nocookie.com`, `open.spotify.com`), matching `script-src` additions for their
-  official API scripts, `object-src 'none'`, `frame-ancestors 'none'`, `nosniff`,
+  official API scripts, `connect-src` for the app, the playback providers and their own oEmbed
+  metadata endpoints (track metadata — no search APIs, no trackers), `object-src 'none'`,
+  `frame-ancestors 'none'`, `nosniff`,
   `Referrer-Policy: strict-origin-when-cross-origin`, Permissions-Policy with camera/mic/
   location/payment disabled. HSTS is commented out until the domain is confirmed HTTPS-only.
 - Every URL passes `src/lib/urlSafety.ts` before render or navigation
@@ -271,9 +321,10 @@ paint is just the hero, the gallery and the player shell.
 - External links use `target=_blank rel=noopener noreferrer`.
 - Station metadata is rendered as text only — no `dangerouslySetInnerHTML` anywhere.
 - **The app stores nothing**: no `localStorage`, no cookies, no accounts, no secrets, no
-  `VITE_*` keys, no analytics. Network access is limited to the audio you press play on and
-  the official API scripts of the provider station you selected; presence runs over a local
-  `BroadcastChannel` — same browser only, nothing crosses the network.
+  `VITE_*` keys, no analytics. Network access is limited to the audio you press play on, the
+  official API scripts of the provider station you selected, and the oEmbed metadata lookup
+  you trigger by pasting a track link; presence and the request board sync over a local
+  `BroadcastChannel` — same browser only, nothing else crosses the network.
 
 ## Accessibility & motion
 
@@ -283,6 +334,10 @@ paint is just the hero, the gallery and the player shell.
   has a visible control. Category switches never interrupt playback.
 - `aria-live` announcements on station change, `aria-pressed` on selectors, `aria-label` on
   icon-only buttons, 44px+ touch targets, text + colour for every state, alt text on artwork.
+- The community wall is keyboard-native: its views are a real `role="tablist"` with
+  `aria-selected`, vote buttons carry `aria-pressed`, vote counts announce politely through
+  `aria-live`, the URL field is a labelled single-input form with a status region, and a
+  `?request=` deep link lands focus on the highlighted card.
 - Progress bars render only when a real duration exists — never simulated.
 - No autoplay without a user gesture; `prefers-reduced-motion` collapses all animation and
   stops the archive drift, which otherwise pauses for hover, wheel, touch, keys and clicks
@@ -296,4 +351,6 @@ Static output in `dist/`. Any CDN works:
 - **Vercel**: copy the `/*` block from `public/_headers` into `vercel.json` → `headers`.
 
 Deep links are shareable and resolve to the same static app:
-`/?station=truck-wala-radio&category=transit`.
+`/?station=truck-wala-radio&category=transit`, `/suggest-music`, and
+`/suggest-music?request=<id>` — the build writes `dist/suggest-music/index.html`, so plain
+file servers and GitHub Pages resolve the community route on a cold load too.

@@ -49,6 +49,15 @@ export function StationGallery({
     let cycle = 0;
     let hovering = false;
     let pausedUntil = performance.now() + START_DELAY;
+    let fadeTimer = 0;
+
+    // The hairline scrollbar belongs to the reader, not the drift: any real
+    // interaction reveals it, and ~800ms of stillness fades it away again.
+    const revealScrollbar = () => {
+      el.classList.add('is-scrolling');
+      window.clearTimeout(fadeTimer);
+      fadeTimer = window.setTimeout(() => el.classList.remove('is-scrolling'), 800);
+    };
 
     // Loop distance: the first cloned card sits exactly one copy down, so
     // wrapping the scroll position there is pixel-identical and seamless.
@@ -68,6 +77,7 @@ export function StationGallery({
 
     const nudge = () => {
       pausedUntil = performance.now() + RESUME_AFTER;
+      revealScrollbar();
     };
     const onEnter = () => {
       hovering = true;
@@ -117,6 +127,7 @@ export function StationGallery({
     return () => {
       cancelAnimationFrame(frame);
       observer?.disconnect();
+      window.clearTimeout(fadeTimer);
       el.removeEventListener('wheel', nudge);
       el.removeEventListener('touchstart', nudge);
       el.removeEventListener('pointerdown', nudge);
@@ -164,12 +175,11 @@ export function StationGallery({
         ) : null}
         <span className="station-card-scrim" aria-hidden="true" />
 
-        <span className="station-card-status">
-          <span className="dot" aria-hidden="true" />
-          {status}
-        </span>
-
         <span className="station-card-body">
+          <span className="station-card-status">
+            <span className="dot" aria-hidden="true" />
+            {status}
+          </span>
           <span className="station-card-name">{category.label}</span>
           <span className="station-card-tag">{category.tagline}</span>
           <span className="station-card-meta">
@@ -187,20 +197,23 @@ export function StationGallery({
   return (
     <div className="gallery" role="group" aria-label="Radio categories">
       <div className="gallery-head">
-        <p className="gallery-eyebrow">Explore the radio</p>
-        <p className="gallery-count">{STATIONS.length} stations</p>
+        <div>
+          <p className="gallery-eyebrow">Explore the radio</p>
+          <p className="gallery-count">{STATIONS.length} stations</p>
+        </div>
+        <button type="button" className="gallery-view-all" onClick={onExploreAll}>
+          View all {STATIONS.length} <span aria-hidden="true">→</span>
+        </button>
       </div>
 
-      <div className="station-grid" ref={viewportRef} tabIndex={-1}>
-        <div className="station-track">
-          {CATEGORIES.map((category) => card(category, false))}
-          {CATEGORIES.map((category) => card(category, true))}
+      <div className="station-fade">
+        <div className="station-grid" ref={viewportRef} tabIndex={-1}>
+          <div className="station-track">
+            {CATEGORIES.map((category) => card(category, false))}
+            {CATEGORIES.map((category) => card(category, true))}
+          </div>
         </div>
       </div>
-
-      <button type="button" className="gallery-more" onClick={onExploreAll}>
-        Explore all stations <span aria-hidden="true">→</span>
-      </button>
     </div>
   );
 }

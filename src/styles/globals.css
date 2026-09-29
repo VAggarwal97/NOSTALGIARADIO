@@ -119,7 +119,6 @@ img {
 .topnav[data-compact='true'] {
   background: rgba(8, 8, 7, 0.86);
   backdrop-filter: blur(16px);
-  box-shadow: 0 1px 0 var(--border);
 }
 
 .topnav-inner {
@@ -153,13 +152,14 @@ img {
 
 /* No tagline under the wordmark — the design speaks for the brand. */
 
-/* Categories live inside the hero gallery — the header stays a utility bar. */
-.nav-tools {
+/* Categories live inside the hero gallery — the header stays a masthead. */
+.nav-links {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: clamp(16px, 2vw, 30px);
 }
 
+/* Quiet square hit-targets inside the player and overlays — not the navbar. */
 .icon-btn {
   display: inline-grid;
   place-items: center;
@@ -180,81 +180,97 @@ img {
   color: var(--accent-text);
 }
 
-.service-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 0 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  color: var(--cream);
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  text-decoration: none;
-  transition: all var(--dur-fast) var(--ease);
-}
-
-.service-btn:hover {
-  border-color: var(--accent);
-  color: var(--ivory);
-}
-
-/* Suggest music — opens the overlay; the navbar never navigates away. */
-.nav-suggest {
-  display: inline-flex;
-  align-items: center;
-  min-height: 40px;
-  padding: 0 14px;
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  border-radius: var(--radius-pill);
-  background: none;
-  color: var(--ivory);
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
-}
-
-.nav-suggest:hover {
-  border-color: var(--accent);
-  color: var(--accent-text);
-}
-
-.nav-suggest:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
-
 /*
- * Donate is a reserved slot, not a flow: the same treatment as the other
- * utility links, pointing at a configurable destination (see src/data/donate.ts).
+ * Borderless text navigation: type only. Hover brightens the word and
+ * draws a 1px line — never a border, pill or box.
  */
-.donate-btn {
+.nav-link {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  min-height: 40px;
-  padding: 0 16px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-pill);
-  color: var(--ivory);
+  gap: 5px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
   font-family: var(--font-mono);
   font-size: 0.6875rem;
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   text-decoration: none;
-  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
-    background var(--dur-fast) var(--ease);
+  color: rgba(244, 235, 221, 0.62);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
 }
 
-.donate-btn:hover {
-  border-color: var(--accent);
-  background: rgba(244, 235, 221, 0.06);
+.nav-link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 13px;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 200ms var(--ease);
+}
+
+.nav-link:hover {
+  color: var(--ivory);
+}
+
+.nav-link:hover::after,
+.nav-link:focus-visible::after {
+  transform: scaleX(1);
+}
+
+.nav-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+/* The most important item — brighter by default, coral line on hover. */
+.nav-link-suggest {
+  color: var(--ivory);
+}
+
+.nav-link-suggest::after {
+  background: var(--accent);
+}
+
+.nav-out {
+  display: inline-block;
+  font-size: 0.625rem;
+  opacity: 0.7;
+  transition: transform 200ms var(--ease);
+}
+
+.nav-link:hover .nav-out {
+  transform: translateX(2px);
+}
+
+/* Donate is a reserved slot, not a flow: stronger contrast, still just text. */
+.nav-link-donate {
+  color: var(--ivory);
+}
+
+/* Quiet utilities — ? and ⌕ stand alone, no circle around them. */
+.nav-link-quiet {
+  min-width: 44px;
+  justify-content: center;
+  font-size: 0.8125rem;
+  letter-spacing: 0;
+  color: rgba(244, 235, 221, 0.5);
+}
+
+.nav-link-quiet::after {
+  display: none;
+}
+
+.nav-link-quiet:hover {
+  color: var(--ivory);
 }
 
 /* ── Cinematic hero — the page's identity ───────────────────────────────── */
@@ -448,31 +464,91 @@ img {
   min-width: 0;
 }
 
+/*
+ * Editorial heading, not a panel header: mono title, quiet station count
+ * stacked underneath, and one hairline "view all" link on the right.
+ */
 .gallery-head {
   display: flex;
-  align-items: baseline;
+  align-items: flex-end;
   justify-content: space-between;
   gap: var(--space-3);
-  margin-bottom: 14px;
+  margin-bottom: 26px;
 }
 
 .gallery-eyebrow {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  letter-spacing: 0.3em;
+  font-weight: 500;
+  font-size: 0.6875rem; /* 11px */
+  letter-spacing: 0.28em;
   text-transform: uppercase;
-  color: var(--ivory);
-  opacity: 0.75;
+  color: rgba(245, 238, 225, 0.55);
 }
 
 .gallery-count {
-  margin: 0;
+  margin: 5px 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.625rem; /* 10px */
+  letter-spacing: 0.16em;
+  color: rgba(245, 238, 225, 0.28);
+}
+
+/* Never a CTA — a whisper of a link beside the heading. */
+.gallery-view-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
   font-family: var(--font-mono);
   font-size: 0.625rem;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: rgba(245, 238, 225, 0.34);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.gallery-view-all span {
+  display: inline-block;
+  transition: transform 200ms var(--ease);
+}
+
+.gallery-view-all:hover {
+  color: var(--ivory);
+}
+
+.gallery-view-all:hover span {
+  transform: translateX(4px);
+}
+
+.gallery-view-all:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/*
+ * Cards dissolve into the artwork at the top and bottom of the viewport
+ * instead of ending at a hard edge — the archive visibly continues.
+ */
+.station-fade {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 26px,
+    #000 calc(100% - 26px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 26px,
+    #000 calc(100% - 26px),
+    transparent 100%
+  );
 }
 
 .station-grid {
@@ -480,16 +556,25 @@ img {
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scrollbar-color: rgba(244, 235, 221, 0.18) transparent;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 300ms var(--ease);
   /* Bounded archive viewport — the slow auto-scroll lives here. */
-  max-height: clamp(300px, 46vh, 440px);
+  max-height: clamp(320px, 50vh, 476px);
   padding: 2px;
   margin: -2px;
 }
 
+/* A 3px hairline that only appears while somebody is actually scrolling,
+   then fades back into the artwork. The drift writes scrollTop itself and
+   never triggers the class, so the archive stays chrome-free at rest. */
+.station-grid.is-scrolling {
+  scrollbar-color: rgba(245, 238, 225, 0.22) transparent;
+}
+
 .station-grid::-webkit-scrollbar {
-  width: 6px;
+  width: 3px;
 }
 
 .station-grid::-webkit-scrollbar-track {
@@ -497,8 +582,17 @@ img {
 }
 
 .station-grid::-webkit-scrollbar-thumb {
-  background: rgba(244, 235, 221, 0.18);
+  background: transparent;
   border-radius: 3px;
+  transition: background 300ms var(--ease);
+}
+
+.station-grid.is-scrolling::-webkit-scrollbar-thumb {
+  background: rgba(245, 238, 225, 0.22);
+}
+
+.station-grid.is-scrolling::-webkit-scrollbar-thumb:hover {
+  background: rgba(245, 238, 225, 0.4);
 }
 
 .station-track {
@@ -507,21 +601,26 @@ img {
   gap: clamp(8px, 0.9vw, 14px);
 }
 
+/*
+ * A small window into another radio world, not a dashboard card:
+ * artwork fills it, copy is anchored to the bottom, and the border is
+ * almost invisible until you approach it.
+ */
 .station-card {
   position: relative;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  height: clamp(138px, 21vh, 204px);
-  padding: 12px;
-  border: 1px solid rgba(244, 235, 221, 0.14);
+  height: clamp(145px, 22vh, 155px);
+  padding: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 18px;
   overflow: hidden;
   isolation: isolate;
   text-align: left;
-  background: #0b0807;
-  transition: transform var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
-    box-shadow var(--dur-fast) var(--ease);
+  background: rgba(10, 7, 7, 0.34);
+  transition: transform 200ms var(--ease), border-color 200ms var(--ease),
+    box-shadow 200ms var(--ease);
 }
 
 .station-card-art {
@@ -531,38 +630,38 @@ img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform var(--dur-fast) var(--ease);
+  transition: transform 200ms var(--ease), filter 200ms var(--ease);
 }
 
+/* Readability without muddying the artwork. */
 .station-card-scrim {
   position: absolute;
   inset: 0;
   z-index: -1;
   background: linear-gradient(
     to top,
-    rgba(4, 3, 3, 0.94) 0%,
-    rgba(4, 3, 3, 0.62) 44%,
-    rgba(4, 3, 3, 0.14) 100%
+    rgba(8, 5, 5, 0.92) 0%,
+    rgba(8, 5, 5, 0.35) 55%,
+    transparent 100%
   );
 }
 
+/* First line of the bottom stack: honest state, tiny mono. */
 .station-card-status {
-  position: absolute;
-  top: 11px;
-  left: 12px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  margin-bottom: 4px;
   font-family: var(--font-mono);
-  font-size: 0.5625rem;
+  font-size: 0.5625rem; /* 9px */
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(244, 235, 221, 0.6);
+  color: rgba(245, 238, 225, 0.5);
 }
 
 .station-card-status .dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: currentColor;
 }
@@ -580,23 +679,24 @@ img {
 .station-card-body {
   display: grid;
   gap: 5px;
-  padding-right: 34px;
+  padding-right: 30px;
 }
 
 .station-card-name {
-  font-family: var(--font-sans);
-  font-size: clamp(0.95rem, 1vw, 1.2rem);
+  font-family: var(--font-display);
+  font-size: 1.3125rem; /* 21px */
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--ivory);
+  color: rgba(245, 238, 225, 0.9);
   line-height: 1.05;
+  transition: color 200ms var(--ease);
 }
 
 .station-card-tag {
-  font-size: 0.6875rem;
+  font-size: 0.6875rem; /* 11–12px */
   line-height: 1.4;
-  color: rgba(244, 235, 221, 0.72);
+  color: rgba(245, 238, 225, 0.62);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -605,43 +705,42 @@ img {
 
 .station-card-meta {
   font-family: var(--font-mono);
-  font-size: 0.5625rem;
+  font-size: 0.5625rem; /* 8–9px */
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(244, 235, 221, 0.5);
+  color: rgba(245, 238, 225, 0.42);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+/* A bare text arrow — no circle, no border, no background. */
 .station-card-arrow {
   position: absolute;
-  right: 10px;
-  bottom: 10px;
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: rgba(8, 8, 7, 0.5);
-  border: 1px solid rgba(244, 235, 221, 0.18);
-  color: var(--ivory);
-  font-size: 0.875rem;
-  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
-    border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+  right: 13px;
+  bottom: 12px;
+  color: rgba(245, 238, 225, 0.55);
+  font-size: 0.9375rem;
+  line-height: 1;
+  transition: transform 200ms var(--ease), color 200ms var(--ease);
 }
 
 .station-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(244, 235, 221, 0.3);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 .station-card:hover .station-card-art {
-  transform: scale(1.03);
+  transform: scale(1.04);
+  filter: brightness(1.08);
+}
+
+.station-card:hover .station-card-name {
+  color: #f5eee1;
 }
 
 .station-card:hover .station-card-arrow {
-  background: rgba(244, 235, 221, 0.14);
+  color: #f5eee1;
   transform: translateX(4px);
 }
 
@@ -650,39 +749,32 @@ img {
   outline-offset: 3px;
 }
 
+/*
+ * Active state: brighter artwork, a faint coral atmosphere and a thin
+ * coral line along the bottom edge — never a bright rectangular border.
+ */
 .station-card[data-active='true'] {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent),
-    0 16px 40px color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 18px 50px rgba(255, 83, 62, 0.12);
+}
+
+.station-card[data-active='true']::after {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 0;
+  height: 1px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+
+.station-card[data-active='true'] .station-card-art {
+  filter: brightness(1.1) saturate(1.05);
 }
 
 .station-card[data-active='true'] .station-card-arrow {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #140f0b;
-}
-
-.gallery-more {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  margin-top: 8px;
-  font-family: var(--font-mono);
-  font-size: 0.625rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--muted);
-  transition: color var(--dur-fast) var(--ease);
-}
-
-.gallery-more:hover {
-  color: var(--ivory);
-}
-
-.gallery-more:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
+  color: var(--accent-text);
 }
 
 .hero-fade {
@@ -1760,14 +1852,8 @@ img {
 }
 
 @media (max-width: 1180px) {
-  .service-btn span {
-    display: none;
-  }
-
-  .service-btn {
-    min-width: 44px;
-    justify-content: center;
-    padding: 0 12px;
+  .nav-links {
+    gap: 16px;
   }
 }
 
@@ -1822,12 +1908,19 @@ img {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /* The rail is edge-to-edge — no editorial fade on a swipe track. */
+  .station-fade {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
   .station-grid {
     overflow-x: auto;
     overflow-y: hidden;
     max-height: none;
     scroll-snap-type: x mandatory;
     scrollbar-width: none;
+    scrollbar-gutter: auto;
     padding-bottom: 2px;
   }
 
@@ -1850,7 +1943,8 @@ img {
     scroll-snap-align: start;
   }
 
-  .nav-tools .service-btn {
+  /* External services step aside — brand, suggest and utilities stay. */
+  .nav-link-external {
     display: none;
   }
 }
@@ -1862,12 +1956,12 @@ img {
     letter-spacing: 0.08em;
   }
 
-  .donate-btn {
-    padding: 0 13px;
+  .nav-links {
+    gap: 12px;
   }
 
   /* The player-side suggest control remains the primary way in. */
-  .nav-suggest {
+  .nav-link-suggest {
     display: none;
   }
 }
@@ -2034,136 +2128,6 @@ img {
     opacity: 1;
     transform: none;
   }
-}
-
-/* ── Suggestion overlay ──────────────────────────────────────────────────── */
-
-.dialog--suggest {
-  width: min(520px, 100%);
-}
-
-.suggest-form,
-.suggest-done {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.suggest-context {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  margin: var(--space-4) 0 0;
-}
-
-.suggest-context span {
-  font-family: var(--font-mono);
-  font-size: 0.625rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.suggest-context strong {
-  font-family: var(--font-display);
-  font-size: var(--size-heading);
-  font-weight: 600;
-  line-height: 1.1;
-  color: var(--ivory);
-}
-
-.suggest-lede {
-  margin: 0;
-  color: var(--cream);
-}
-
-.suggest-input {
-  width: 100%;
-  min-height: 52px;
-  padding: 14px 18px;
-  background: rgba(244, 235, 221, 0.05);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-pill);
-  outline: none;
-  font-size: 1rem;
-  color: var(--ivory);
-  transition: border-color var(--dur-fast) var(--ease);
-}
-
-.suggest-input::placeholder {
-  color: var(--muted);
-}
-
-.suggest-input:focus-visible {
-  border-color: var(--accent);
-}
-
-.suggest-input[aria-invalid='true'] {
-  border-color: var(--state-error);
-}
-
-.suggest-error {
-  margin: calc(var(--space-3) * -1) 0 0;
-  font-size: 0.875rem;
-  color: var(--state-error);
-}
-
-.suggest-submit {
-  min-height: 48px;
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: var(--ivory);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
-}
-
-.suggest-submit:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 28%, transparent);
-}
-
-.suggest-submit:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.suggest-submit:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
-
-.suggest-note {
-  margin: 0;
-  text-align: center;
-  font-family: var(--font-mono);
-  font-size: 0.625rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.suggest-done {
-  place-items: center;
-  text-align: center;
-  padding: var(--space-5) 0 var(--space-2);
-}
-
-.suggest-done-title {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: 0.8125rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--state-green);
-}
-
-.suggest-done-copy {
-  margin: 0;
-  max-width: 34ch;
-  color: var(--cream);
 }
 
 /* ── Reduced motion ─────────────────────────────────────────────────────── */

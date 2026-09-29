@@ -5,7 +5,7 @@ import { useStationRating } from '../hooks/useStationRating';
 interface CommunityControlsProps {
   /** Ratings belong to the station, never to the category. */
   station: Station | null;
-  /** Opens the suggestion modal — same overlay the navbar triggers. */
+  /** Jumps to the community request page (/suggest-music). */
   onSuggest: () => void;
 }
 

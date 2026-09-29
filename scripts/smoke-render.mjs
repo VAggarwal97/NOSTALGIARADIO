@@ -72,7 +72,7 @@ try {
     ['gallery lists the listening worlds', html.includes('Travel') && html.includes('Folk')],
     ['no category chips in the header', !html.includes('category-nav') && !html.includes('chip-indicator')],
     ['no fullscreen station menu', !html.includes('station-menu')],
-    ['donate lives in the navbar', html.includes('donate-btn')],
+    ['donate lives in the navbar', html.includes('nav-link-donate')],
     ['no technical tagline under the brand', !html.includes('brand-micro')],
     ['no donation page or modal', !html.includes('class="support"')],
     ['no provider iframe until a station configures one', !html.includes('engine-dock')],
@@ -90,6 +90,7 @@ try {
     ['no hardcoded listener counts in SSR', !/\d+\s*(listening|listeners)/i.test(html)],
     ['renders the participate controls beside the player', html.includes('community-controls') && html.includes('suggest-btn')],
     ['rating aggregates stay honest until someone rates', !/\d+ ratings/.test(html) && html.includes('Be the first')],
+    ['navbar links to the community page', html.includes('href="/suggest-music"')],
     ['no suggestion modal until it is asked for', !html.includes('dialog--suggest') && !html.includes('suggest-form')],
     ['the archive renders its seamless loop copy', (html.match(/class="station-card"/g) ?? []).length === 16],
     ['no station-level fake ratings', !/★\s*\d/.test(html)],
@@ -97,12 +98,33 @@ try {
     ['no NaN leakage', !html.includes('NaN')],
   ];
 
+  // Second view: the community request wall, rendered at its real path.
+  windowStub.location.pathname = '/suggest-music';
+  const suggestHtml = renderToString(createElement(App));
+  windowStub.location.pathname = '/';
+
+  const suggestChecks = [
+    ['renders the suggest page shell', suggestHtml.includes('suggest-page')],
+    ['renders the community hero', /community radio/i.test(suggestHtml) && /your music/i.test(suggestHtml)],
+    ['renders the request console', suggestHtml.includes('console-input')],
+    ['renders how it works', /how it works/i.test(suggestHtml)],
+    ['renders the community board heading', /what should play next/i.test(suggestHtml)],
+    ['renders the ranking tabs', suggestHtml.includes('Most wanted') && suggestHtml.includes('Recently added')],
+    ['no requests until the API returns them', suggestHtml.includes('Loading requests')],
+    ['no fake vote counts in SSR', !/▲\s*\d/.test(suggestHtml)],
+    ['the player stays on the suggest page', suggestHtml.includes('Player controls')],
+    ['the home gallery is not on the suggest page', !suggestHtml.includes('station-grid')],
+    ['no suggestion modal anywhere', !suggestHtml.includes('suggest-form') && !suggestHtml.includes('dialog--suggest')],
+    ['no undefined leakage on the suggest page', !suggestHtml.includes('undefined</')],
+    ['no NaN leakage on the suggest page', !suggestHtml.includes('NaN')],
+  ];
+
   let failed = 0;
-  for (const [name, ok] of checks) {
+  for (const [name, ok] of [...checks, ...suggestChecks]) {
     console.log(`  ${ok ? 'ok  ' : 'FAIL'}  ${name}`);
     if (!ok) failed += 1;
   }
-  console.log(`  rendered ${html.length} bytes of HTML`);
+  console.log(`  rendered ${html.length} + ${suggestHtml.length} bytes of HTML`);
 
   if (failed > 0) {
     console.error('  smoke render failed.');
