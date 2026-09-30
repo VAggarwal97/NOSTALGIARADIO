@@ -1,11 +1,12 @@
 # Supabase — community backend foundation
 
 Nostalgia Radio's public experience stays a login-free radio. This directory is
-the **secure foundation** that sits behind it: catalogue + community tables,
-row-level security, indexes, server-side rate limits, the generated seed and
-the private `/admin` control room. The **public** app is not connected yet — it
-keeps running on the local request store until the wiring round, so nothing
-here can break the site. The admin panel (§9) does talk to this database.
+the **backend** behind it: catalogue + community tables, row-level security,
+indexes, server-side rate limits, the generated seed, the private `/admin`
+control room and — since the wiring round (§10) — the public wall itself. The
+site talks to Supabase only when `VITE_SUPABASE_URL` +
+`VITE_SUPABASE_PUBLISHABLE_KEY` are present; without them it keeps running on
+the local request store, fully offline.
 
 ```text
 Browser (publishable key only)          Audio bytes
@@ -23,7 +24,7 @@ Browser (publishable key only)          Audio bytes
 
 ## 1. Applying the migrations
 
-Run the four files in `supabase/migrations/` **in this order**. Either way:
+Run the five files in `supabase/migrations/` **in this order**. Either way:
 
 **SQL Editor (simplest):** Dashboard → SQL Editor → New query → paste each file
 whole → Run. Repeat for the next file.
@@ -37,8 +38,9 @@ whole → Run. Repeat for the next file.
 | 2 | `20260930000002_rls_policies.sql` | Row Level Security, least-privilege grants |
 | 3 | `20260930000003_seed_catalogue.sql` | 8 categories + 37 stations (generated — see §5) |
 | 4 | `20260930000004_admin_panel.sql` | Admin authz tables, `is_admin()`, admin policies, activity log, settings, `request_wall` view (see §9) |
+| 5 | `20260930000005_public_wiring.sql` | Seamless `approved` default, widened public INSERT policy, `suggestions` in the realtime publication, `wall_board()` query function (see §10) |
 
-All four are **idempotent** — re-running any of them is safe.
+All five are **idempotent** — re-running any of them is safe.
 
 **Verify afterwards** (SQL Editor):
 
@@ -51,6 +53,19 @@ select relrowsecurity from pg_class where relname in
   ('categories','stations','songs','suggestions','votes','station_events',
    'admin_users','admin_activity_logs','site_settings');
 -- 9 rows, all true
+
+-- migration 5:
+select column_default from information_schema.columns
+ where table_schema = 'public' and table_name = 'suggestions'
+   and column_name = 'status';           -- 'approved'::text
+select count(*) from pg_publication_tables
+ where pubname = 'supabase_realtime'
+   and schemaname = 'public' and tablename = 'suggestions';  -- 1
+select proname from pg_proc where proname = 'wall_board';     -- 1 row
+-- board spot-checks: ordering, search, and the visibility hardcode
+select title, votes from wall_board('wanted', '', 5);      -- votes desc, approved only
+select title, created_at from wall_board('recent', '', 5); -- created_at desc
+select count(*) from wall_board('wanted', 'zzz-no-match', 60); -- 0 → search works
 ```
 
 ---
@@ -65,7 +80,8 @@ select relrowsecurity from pg_class where relname in
 | Database password | Supabase dashboard only | Never pasted into chats, logs or Git |
 
 - Copy `.env.example` → `.env.local` (both `.env` and `*.local` are
-  git-ignored): needed by the admin gate now, and by the wiring round later.
+  git-ignored): needed by the admin gate (§9) and the public wall (§10).
+  The **deployed** site needs the same two values in Vercel — see §10.
 - **Rotate the database password** (Settings → Database → Reset password) if it
   was ever shared anywhere — including truncated. The service-role key must
   never be generated into a `VITE_` variable: Vite inlines it and every
@@ -96,37 +112,59 @@ suggestions ──< votes          station_events (write-only analytics)
 ### Status vocabulary
 
 The database uses the moderation lifecycle you asked for; the mapping to the
-wall's existing terms (used at wiring time) is:
+wall's terms is implemented in `src/lib/supabase-request-api.ts`:
 
 | Database `suggestions.status` | Wall sees it as | Publicly visible |
 |---|---|---|
-| `pending` | *(awaiting moderation)* | No |
+| `pending` | *(never fetched)* | No |
 | `approved` | `open` (votable, queue-eligible) | Yes |
 | `played` | `played` (history, never replays) | Yes |
 | `rejected` | `unavailable` (refused) | No |
+
+Since migration 5 a public insert **lands as `approved`** (seamless — see §4),
+so `pending` only exists while strict pre-moderation is on or when an admin
+deliberately holds a row back.
 
 ---
 
 ## 4. Moderation workflow
 
-1. A visitor submits → row lands as **`pending`** with `status` locked by RLS
-   (the public cannot insert any other value).
-2. Review it in **`/admin` → Suggestions** (Approve / Reject / Mark played /
-   Delete) — or in **Table Editor → suggestions → status → approved**. Both
-   paths run through the same RLS; only an active `admin_users` identity can.
-3. It appears on the wall and joins the community queue ranking.
-4. When it airs, its status moves to **`played`** + `played_at` set (the admin
-   panel's “Mark played”; the queue's auto-retire is still the wiring-round
-   decision in §8).
+**Seamless mode is on** (migration 5 — submissions behave like V1, but shared):
 
-**Seamless mode** (skip step 2 — behaves like V1, everything immediately
-votable):
+1. A visitor submits → the row lands as **`approved`** (the client never sends
+   `status`; the column default decides) → it is on the wall and in the queue
+   rankings the moment it is sent.
+2. Review any time in **`/admin` → Suggestions** (Approve / Reject / Mark
+   played / Delete) — or in **Table Editor → suggestions → status**. Both
+   paths run through the same RLS; only an active `admin_users` identity can.
+3. When it airs, its status moves to **`played`** + `played_at` set (the admin
+   panel's “Mark played”). Played rows are history: they never re-enter the
+   queue.
+
+**Strict pre-moderation** (optional — new submissions wait for approval
+before anyone can see or vote them). Two statements:
 
 ```sql
-alter table public.suggestions alter column status set default 'approved';
+alter table public.suggestions alter column status set default 'pending';
+
+drop policy if exists "public submits requests" on public.suggestions;
+create policy "public submits pending requests"
+  on public.suggestions for insert
+  to anon, authenticated
+  with check (
+    status = 'pending'
+    and visitor_token is not null
+    and length(visitor_token) <= 100
+  );
 ```
 
-Flip back with `set default 'pending'` at any time.
+The policy half matters: the browser never writes `status`, but a hand-crafted
+request could try to — with `status = 'pending'` the only accepted value,
+strict mode cannot be talked around. In strict mode the wall simply never
+receives a row until an admin approves it (step 2 above).
+
+**Back to seamless:** re-run migration 5 (idempotent) — it restores the
+`approved` default and the widened policy.
 
 ---
 
@@ -150,11 +188,12 @@ erroring halfway through a paste in the SQL Editor.
 
 ---
 
-## 6. Error mapping for the wiring round
+## 6. Error mapping (implemented)
 
-The client will translate database signals into the existing failure
-vocabulary (`src/lib/request-api.ts` — `duplicate`, `already-voted`,
-`rate-limited`, `not-found`, `unavailable`):
+`src/lib/supabase-request-api.ts` translates database signals into the
+existing failure vocabulary (`duplicate`, `already-voted`, `rate-limited`,
+`not-found`, `unavailable`) — and anything unexpected becomes an honest
+failure the UI shows, never a fake success:
 
 | UI failure | Database signal |
 |---|---|
@@ -162,7 +201,8 @@ vocabulary (`src/lib/request-api.ts` — `duplicate`, `already-voted`,
 | `rate-limited` | message starts with `rate-limited:` (triggers: 3 suggestions/60 s, 10 votes/60 s per token) |
 | `not-found` | `23503` foreign_key_violation on `votes.suggestion_id` |
 | `unavailable` | RLS violation `42501` (vote aimed at a pending/rejected suggestion or inactive station) |
-| moderation wait | row stays `pending`; the wall simply doesn't receive it until approved |
+| moderation wait | strict mode only: row stays `pending`; the wall simply doesn't receive it until approved |
+| any other / network error | surfaced as an error state — the console offers *Try again*, the board keeps its last good data and retries |
 
 RLS `with check` on `votes` also re-verifies the target is `approved` server-
 side — the client's opinion of a song's status is never trusted.
@@ -174,7 +214,8 @@ side — the client's opinion of a song's status is never trusted.
 - [x] RLS enabled on all six tables (no `force` — owner/service-role is the
       intentional admin path)
 - [x] Public: `SELECT` active catalogue, `SELECT` approved/played requests,
-      `INSERT` pending requests/votes/events — **nothing else**
+      `INSERT` requests (pending or approved — §4), votes, events —
+      **nothing else**
 - [x] No public `UPDATE`/`DELETE` anywhere (no policy → no access; blanket
       revoke + tightened default privileges for future tables)
 - [x] Column-level grant keeps `visitor_token` off the wire
@@ -188,9 +229,12 @@ side — the client's opinion of a song's status is never trusted.
 
 ## 8. Deliberately deferred (next rounds, with this foundation in place)
 
-1. **React wiring** — replace the local store through the existing
-   `getRequestApi()` seam (categories/stations fetch, votes, suggestions),
-   with `.env.local` credentials and a local fallback when they're absent.
+1. **~~React wiring~~** — shipped; see §10. Still deferred inside it:
+   **categories/stations fetch from the database** — the public catalogue is
+   still read from the bundled `STATIONS` data (identical content), because
+   making it async mid-round would touch every consumer. The tables and admin
+   policies exist; it moves to the content-editors round together with
+   station CRUD.
 2. **Admin content editors** — categories, stations and songs CRUD, audio
    testing, homepage/featured/settings/SEO screens: the tables, admin policies
    and the trigger-written activity log already support them (§9); the screens
@@ -199,10 +243,12 @@ side — the client's opinion of a song's status is never trusted.
    server-side for every path; the first justified function is an admin-OTP
    pre-check (reject non-allowlisted addresses *before* an email is sent),
    written, deployed and tested together with its client, not shipped blind.
-4. **Retiring a request to `played` from the client** — public `UPDATE` is
-   correctly forbidden, so the queue's auto-retire needs either an authenticated
-   admin path or an accepted-risk RPC. Real decision, made at wiring time with
-   both options on the table — not faked now.
+4. **Retiring a request to `played`** — **decided:** public `UPDATE` stays
+   forbidden (§8 of the original plan, kept). When a song airs, the player's
+   adapter retires it to *this session's* history (`markPlayed(id, played)`
+   keeps a local copy) while the row's `played` status still only an admin
+   sets. One visitor's history view stays truthful without opening a global
+   write path; the next admin action syncs everyone.
 5. **Station events / trending** — table and insert policy exist; emit events
    only when there is traffic worth counting.
 6. **Roles beyond `owner`** — `admin_users.role` (owner/admin/editor/moderator)
@@ -295,3 +341,65 @@ votes view · analytics · audio health            → later
 roles enforcement · admin users screen · OTP     → later
   pre-check (Edge Function)
 ```
+
+---
+
+## 10. Public wiring — what ships in the app
+
+The site picks its backend at runtime: **configured browser ⇒ Supabase,
+everything else ⇒ the local store.**
+
+| Where | Backend |
+|---|---|
+| Browser with `VITE_SUPABASE_URL` + `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase (shared, realtime) |
+| Browser without them | local store — the site works fully offline |
+| SSR / smoke render / Node | local store, always — a render never touches the network |
+
+The database backend loads as a lazy chunk (`src/lib/supabase-request-api.ts`
+via the `getRequestApi()` seam), so an unconfigured build never downloads
+supabase-js; the smoke render proves the unconfigured state even when
+`.env.local` exists.
+
+### What runs where
+
+- **Submissions** — insert first; the console shows *sent* only after the row
+  comes back from Postgres. Duplicate / rate-limit / RLS errors map through
+  §6; anything else is an honest failure with *Try again*.
+- **Votes** — one row per song per device in `votes` (unique index + trigger
+  limit). “Have I voted?” is remembered on the device
+  (`nostalgia-voted-requests`); the `visitor_token` (`nostalgia-visitor-id`)
+  is write-only — never read back.
+- **Counts** — never stored, never invented: read from
+  `suggestion_vote_counts` on a light 20 s poll + on focus. They deliberately
+  do **not** ride realtime (`votes` has no public SELECT).
+- **Rankings & search** — all four tabs (Most Wanted / Rising / Recently
+  Added / Played) and the search box run through `wall_board()` in SQL, so
+  ordering and limits are identical for every visitor.
+- **Realtime** — `suggestions` joins the `supabase_realtime` publication. A
+  live channel **supplements** the initial SELECT (which always loads first),
+  and quietly falls back to the poll if `wss://` is unreachable (the endpoint
+  is already in the CSP `connect-src` in `index.html`).
+
+### Setup
+
+1. Apply migration 5 (§1) — required for seamless inserts, realtime and
+   `wall_board()`.
+2. Local: `.env.example` → `.env.local` → `npm run dev`.
+3. **Vercel:** Project → Settings → Environment Variables → add the *same two
+   values* (Production) → **Redeploy**. Vite bakes `VITE_*` at build time, so
+   a redeploy is mandatory after any env change.
+
+### Acceptance test (two browsers, no code involved)
+
+1. Browser **A** on the deployed site submits a YouTube song → *sent* appears
+   only after the insert lands.
+2. Browser **B** (another profile/machine) sees it within ~1 s (realtime) or
+   ≤20 s (poll fallback).
+3. **B** votes → **A**'s count rises on the next poll/focus (≤20 s).
+4. Refresh both → the song and counts persist.
+5. `/admin` → Suggestions → Reject → the row disappears from both walls
+   (realtime or next refresh).
+
+If any step shows an instant success before the database answered, or a count
+nobody voted for, it's a bug — `tests/communityWiring.test.ts` pins each of
+these contracts.

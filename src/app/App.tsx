@@ -359,7 +359,7 @@ export default function App() {
       const current = activeRequestRef.current;
       if (current && retireReason(origin)) {
         try {
-          await api.markPlayed(current.id); // it aired → history; it never replays
+          await api.markPlayed(current.id, current); // it aired → history; it never replays
         } catch {
           // History failed — the request simply stays open for a later rotation.
         }

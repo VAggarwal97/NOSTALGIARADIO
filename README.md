@@ -132,22 +132,30 @@ is explicit: every open card carries a **`► Play`** button that airs that requ
 (it becomes a live `● On air` state while it plays). Once anything has played, the boundary
 rule owns every hand-off as described above.
 
-## Supabase foundation (built, not wired)
+## Supabase — the shared community database (wired)
 
-The community layer has a production-ready backend waiting in `supabase/`: four idempotent
-migrations covering the schema (`categories → stations → songs`, plus `suggestions`, `votes`,
-`station_events`), row-level security with least-privilege grants, indexes, database-side
-rate limits that mirror the UI's rules exactly (3 suggestions / 10 votes per visitor per
-minute, one row per song id forever), and a catalogue seed generated from `src/data/*` by
-`npm run seed:sql`. Design rules: no audio bytes in Postgres — pointers only; no stored vote
-counts — totals come from the token-free `suggestion_vote_counts` view; no visitor token ever
-leaves the database; no service-role key anywhere in the repo.
+The community layer runs on a production-ready backend in `supabase/`: five
+idempotent migrations covering the schema (`categories → stations → songs`,
+plus `suggestions`, `votes`, `station_events`), row-level security with
+least-privilege grants, indexes, database-side rate limits that mirror the
+UI's rules exactly (3 suggestions / 10 votes per visitor per minute, one row
+per song id forever), and a catalogue seed generated from `src/data/*` by
+`npm run seed:sql`. Design rules: no audio bytes in Postgres — pointers only;
+no stored vote counts — totals come from the token-free
+`suggestion_vote_counts` view; no visitor token ever leaves the database; no
+service-role key anywhere in the repo.
 
-The public site still runs entirely on the local request store through the `getRequestApi()`
-seam (tests, demo and CI need no network and no database), so nothing changes for visitors
-until the wiring round. Moderation is already usable from the Table Editor: submissions land
-as `pending` and appear on the wall once flipped to `approved`. Full how-to, status mapping,
-error mapping and security checklist: [`supabase/README.md`](supabase/README.md).
+**How the site picks its backend:** a browser with `VITE_SUPABASE_URL` +
+`VITE_SUPABASE_PUBLISHABLE_KEY` set reads and writes the *shared* database —
+submissions, votes, all four rankings and search — so every visitor on every
+deployment sees the same wall (realtime pushes, a light poll converges vote
+counts, and the success state only appears after the insert landed). Without
+those values the same screens run on the local request store: the site keeps
+working fully offline, and tests/CI need no network. Renders (SSR/smoke)
+always stay local — a render never touches a database. Setup for local +
+Vercel (env vars, redeploy) and the two-browser acceptance test:
+[`supabase/README.md`](supabase/README.md) §10. Status mapping, error mapping
+and the security checklist: same file, §§3, 6, 7.
 
 ## Admin control room (`/admin`, built)
 
@@ -163,7 +171,8 @@ password, no signup:
   triggers, so a modified client cannot hide what happened.
 - Bootstrap is one SQL statement after the owner's first sign-in (documented in
   [`supabase/README.md`](supabase/README.md) §9). The panel ships in its own lazy chunk —
-  the public bundle never downloads Supabase code.
+  the main bundle never *contains* Supabase code (a configured build fetches it lazily only
+  when `/admin` or the shared wall actually needs it).
 
 ## Run
 

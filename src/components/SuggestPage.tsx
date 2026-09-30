@@ -94,6 +94,10 @@ export function SuggestPage({
           return;
         }
         setSpotlightId(found.id);
+      })
+      .catch(() => {
+        // Outage while checking a shared link: the board still loads on its
+        // own; don't tell the visitor their request is gone.
       });
   }, []);
 

@@ -81,18 +81,40 @@ export function RequestBoard({
 
   const api = getRequestApi();
 
+  /**
+   * What makes a board state worth re-rendering: identity, count, status,
+   * "mine" and history. The convergence poll re-fetches every cycle; only a
+   * real difference may move state (otherwise deep-linked spotlights would
+   * re-flash every 20 seconds).
+   */
+  const fingerprintOf = (items: SongRequest[], total: number): string =>
+    JSON.stringify([
+      total,
+      items.map((item) => [item.id, item.votes, item.status, item.mine, item.playedAt ?? 0]),
+    ]);
+  const loadFingerprint = useRef<string | null>(null);
+  const hasData = useRef(false);
+
   const refresh = useCallback(async () => {
     try {
       const [items, all] = await Promise.all([api.board({ tab, query }), api.list()]);
       setFailed(false);
+      hasData.current = true;
+      const fingerprint = fingerprintOf(items, all.length);
+      if (loadFingerprint.current === fingerprint) return; // nothing changed
+      loadFingerprint.current = fingerprint;
       setLoad({ items, total: all.length });
     } catch {
-      setFailed(true);
+      // Without data, say so honestly. With good data on screen, keep serving
+      // it and let the next cycle retry — a blip must not blank the wall.
+      setFailed(!hasData.current);
     }
   }, [api, tab, query]);
 
   useEffect(() => {
     setLoad(null);
+    hasData.current = false;
+    loadFingerprint.current = null;
     void refresh();
   }, [refresh]);
 
@@ -134,11 +156,17 @@ export function RequestBoard({
     if (!load || !spotlightId) return;
     const element = document.getElementById(`request-${spotlightId}`);
     if (!element) {
-      void api.get(spotlightId).then((request) => {
-        if (!request) return;
-        const target: RequestTab = request.status === 'played' ? 'played' : 'wanted';
-        setTab((current) => (current === target ? current : target));
-      });
+      void api
+        .get(spotlightId)
+        .then((request) => {
+          if (!request) return;
+          const target: RequestTab = request.status === 'played' ? 'played' : 'wanted';
+          setTab((current) => (current === target ? current : target));
+        })
+        .catch(() => {
+          // Couldn't verify the shared id (outage): leave the board to load
+          // on its own rather than claiming the request is gone.
+        });
       return;
     }
     element.scrollIntoView({

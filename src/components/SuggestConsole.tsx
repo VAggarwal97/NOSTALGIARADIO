@@ -24,6 +24,8 @@ type Phase =
   | 'network'
   | 'limited'
   | 'duplicate'
+  | 'taken'
+  | 'failed'
   | 'added';
 
 const providerName = (provider: SongProvider) => (provider === 'spotify' ? 'Spotify' : 'YouTube');
@@ -149,8 +151,19 @@ export function SuggestConsole({
           void getRequestApi()
             .find(song.url)
             .then((existing) => {
-              setDuplicate(existing);
-              setPhase('duplicate');
+              if (existing) {
+                setDuplicate(existing);
+                setPhase('duplicate');
+              } else {
+                // The song exists (the database said so) but is not publicly
+                // visible — say exactly that instead of a fake success.
+                setPhase('taken');
+                setMeta(null);
+              }
+            })
+            .catch(() => {
+              setPhase('failed');
+              setMeta(null);
             });
         } else if (result.reason === 'rate-limited') {
           setPhase('limited');
@@ -159,6 +172,11 @@ export function SuggestConsole({
           setPhase('invalid');
           setMeta(null);
         }
+      })
+      .catch(() => {
+        // Outage or refusal: the request was NOT added — never imply it was.
+        setPending(false);
+        setPhase('failed');
       });
   };
 
@@ -273,6 +291,38 @@ export function SuggestConsole({
           </p>
           <button type="button" className="console-retry" onClick={() => onJumpTo(duplicate)}>
             View request
+          </button>
+        </div>
+      ) : null}
+
+      {phase === 'taken' ? (
+        <div className="console-note" role="status">
+          <p className="console-note-title">This song has already been suggested</p>
+          <p className="console-note-copy">It isn&apos;t open for new requests right now.</p>
+          <button type="button" className="console-retry" onClick={reset}>
+            Suggest another song
+          </button>
+        </div>
+      ) : null}
+
+      {phase === 'failed' ? (
+        <div className="console-note console-note--bad" role="alert">
+          <p className="console-note-title">We couldn&apos;t add your request</p>
+          <p className="console-note-copy">
+            The community wall didn&apos;t confirm it, so nothing was submitted.
+          </p>
+          <button
+            type="button"
+            className="console-retry"
+            onClick={() => {
+              if (meta) {
+                setPhase('ready');
+              } else {
+                runCheck(url.trim());
+              }
+            }}
+          >
+            Try again
           </button>
         </div>
       ) : null}

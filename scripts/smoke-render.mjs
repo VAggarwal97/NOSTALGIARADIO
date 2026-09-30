@@ -6,6 +6,8 @@
  *
  * Usage: node scripts/smoke-render.mjs
  */
+import { fileURLToPath } from 'node:url';
+
 import { createServer } from 'vite';
 
 const storage = new Map();
@@ -51,7 +53,16 @@ globalThis.location = windowStub.location;
 globalThis.requestAnimationFrame = windowStub.requestAnimationFrame;
 globalThis.cancelAnimationFrame = windowStub.cancelAnimationFrame;
 
+// The smoke render is deliberately an UNCONFIGURED app: it proves structure on
+// the local request store whether or not `.env.local` exists. Neutralise the
+// Supabase pair here — drop any process-env values and point envDir away from
+// the repo root so no `.env*` file can leak in. A configured render only ever
+// happens in a real browser (see usesSharedDatabase() in src/lib/request-api.ts).
+delete process.env.VITE_SUPABASE_URL;
+delete process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
 const server = await createServer({
+  envDir: fileURLToPath(new URL('.', import.meta.url)),
   server: { middlewareMode: true },
   appType: 'custom',
   logLevel: 'error',

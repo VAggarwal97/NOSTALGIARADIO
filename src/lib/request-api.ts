@@ -1,4 +1,5 @@
 import { randomId } from './id';
+import { isSupabaseConfigured } from './supabase-env';
 
 /**
  * The community request wall ("Suggest your music") — API-shaped like the
@@ -89,9 +90,11 @@ export interface RequestApi {
   /**
    * Backend hook: the radio marks a request played, moving it into history.
    * V1's local store exposes it (the wall's Played tab reads from it); a real
-   * queue would call the same method after airplay.
+   * queue would call the same method after airplay. `played` is the full
+   * request being retired — passed when the caller has it, so the Supabase
+   * backend can retire to this session's history even while offline.
    */
-  markPlayed(id: string): Promise<SongRequest | null>;
+  markPlayed(id: string, played?: SongRequest): Promise<SongRequest | null>;
   /** Fires on any local change or a neighbouring tab's snapshot. */
   subscribe(listener: () => void): () => void;
 }
@@ -170,10 +173,10 @@ const RATE_WINDOW_MS = 60_000;
 const MAX_SUBMITS_PER_WINDOW = 3;
 const MAX_VOTES_PER_WINDOW = 10;
 /** Oversized paste protection — nothing long ever reaches the board. */
-const MAX_TITLE = 160;
-const MAX_ARTIST = 120;
+export const MAX_TITLE = 160;
+export const MAX_ARTIST = 120;
 
-const isSafeHttpUrl = (value: string): boolean => {
+export const isSafeHttpUrl = (value: string): boolean => {
   try {
     return new URL(value).protocol === 'https:';
   } catch {
@@ -420,8 +423,104 @@ export function createLocalRequestApi(
 
 let shared: RequestApi | null = null;
 
+/**
+ * The three conditions that may move the wall to the shared database, kept as
+ * a pure decision so every branch is testable without env tricks: a real
+ * browser render, never SSR, and a configured publishable pair.
+ */
+export function shouldUseSharedDatabase(context: {
+  ssr: boolean;
+  hasWindow: boolean;
+  configured: boolean;
+}): boolean {
+  if (context.ssr) return false;
+  if (!context.hasWindow) return false;
+  return context.configured;
+}
+
+/**
+ * Should the wall read Supabase? Only a real browser in a build that was
+ * given the publishable pair. SSR (the smoke render) and Node stay on the
+ * local store no matter what `.env.local` says, so renders never touch a
+ * network — and without configuration the site keeps working fully offline.
+ */
+export function usesSharedDatabase(): boolean {
+  const env = (import.meta as { env?: Record<string, unknown> }).env;
+  return shouldUseSharedDatabase({
+    ssr: env?.SSR === true,
+    hasWindow: typeof window !== 'undefined',
+    configured: isSupabaseConfigured(),
+  });
+}
+
+/**
+ * Wraps the dynamically imported database backend so the code-split chunk
+ * loads on first use without changing the synchronous `RequestApi` surface.
+ * Every call is a promise anyway — a failed load surfaces as a rejected call,
+ * which the UI already renders as an honest failure state.
+ * (Exported so its forwarding/refcount behaviour can be tested without a
+ * network — the production call site is `createSharedRequestApi`.)
+ */
+export function createDeferredRequestApi(load: () => Promise<RequestApi>): RequestApi {
+  let backend: Promise<RequestApi> | null = null;
+  const get = (): Promise<RequestApi> => (backend ??= load());
+  const listeners = new Set<() => void>();
+  let stopBackend: (() => void) | null = null;
+  let attaching = false;
+
+  const attach = (): void => {
+    if (attaching || stopBackend) return;
+    attaching = true;
+    get()
+      .then((api) => {
+        attaching = false;
+        if (listeners.size === 0) return;
+        stopBackend = api.subscribe(() => {
+          for (const listener of [...listeners]) listener();
+        });
+      })
+      .catch(() => {
+        attaching = false; // later calls keep retrying the load and fail honestly
+      });
+  };
+
+  return {
+    submit: (input) => get().then((api) => api.submit(input)),
+    list: () => get().then((api) => api.list()),
+    board: (query) => get().then((api) => api.board(query)),
+    find: (url) => get().then((api) => api.find(url)),
+    get: (id) => get().then((api) => api.get(id)),
+    vote: (id) => get().then((api) => api.vote(id)),
+    markPlayed: (id, played) => get().then((api) => api.markPlayed(id, played)),
+    subscribe(listener) {
+      listeners.add(listener);
+      attach();
+      return () => {
+        listeners.delete(listener);
+        if (listeners.size === 0 && stopBackend) {
+          stopBackend();
+          stopBackend = null;
+        }
+      };
+    },
+  };
+}
+
+/**
+ * One board implementation per page: Supabase in a configured browser (the
+ * community is shared between every visitor and deployment), the local store
+ * everywhere else (tests, demos, offline builds — unchanged behaviour).
+ */
+export function createSharedRequestApi(): RequestApi {
+  if (!usesSharedDatabase()) return createLocalRequestApi();
+  return createDeferredRequestApi(async () => {
+    const { createCommunityRequestApi } = await import('./supabase-request-api');
+    return createCommunityRequestApi();
+  });
+}
+
 /** App-wide community board for this session. */
 export function getRequestApi(): RequestApi {
-  if (!shared) shared = createLocalRequestApi();
+  if (!shared) shared = createSharedRequestApi();
   return shared;
 }
