@@ -122,6 +122,14 @@ themselves: the queue only steps in at a real track boundary (a new video title 
 the list), never on a timer. While a request is on air the pill and the engine dock label it
 `Community request` with the request's real title.
 
+Two deliberate escapes from the boundary rule, both gated by `radioIsSilent` — **only ever
+while the radio has never started this session**, where nothing is playing to interrupt and
+the click is a live user gesture: a successful **submit** and a confirmed **vote** put the
+request on air immediately (`paused` is deliberate silence and is respected). Everything else
+is explicit: every open card carries a **`► Play`** button that airs that request on demand
+(it becomes a live `● On air` state while it plays). Once anything has played, the boundary
+rule owns every hand-off as described above.
+
 ## Run
 
 ```bash
@@ -322,7 +330,11 @@ Three systems sit on top of the static screen. All three follow the same rules: 
 
 All motion is CSS/`requestAnimationFrame` only — no animation library. Everything secondary
 (search, rating data, presence, the request board) loads after first paint, so the first
-paint is just the hero, the gallery and the player shell.
+paint is just the hero, the gallery and the player shell. `index.html` paints a branded
+dark boot screen from the very first byte (removed by `main.tsx` right before React takes
+over), the hero stage photo — the page's LCP — carries `fetchpriority="high"` and a
+`preconnect` to its image host opens during HTML parse, and the demo audio is
+`preload="none"`: nothing extra competes with the first paint.
 
 ## Security
 

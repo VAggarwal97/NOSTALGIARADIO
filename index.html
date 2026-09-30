@@ -23,6 +23,9 @@
 
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml" />
+    <!-- Stage photos load from this host after the app boots; warm the
+         connection during HTML parse so the hero doesn't wait for TLS. -->
+    <link rel="preconnect" href="https://i.pinimg.com" />
 
     <!--
       Baseline CSP for the static app. `frame-ancestors` and `Referrer-Policy` /
@@ -41,9 +44,26 @@
     />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
   </head>
-  <body>
+  <body style="margin: 0; background: #080807; color: #f5eee1">
+    <!-- Boot screen: painted from the first byte, before CSS or JS download,
+         so the stage is dark and branded instead of a blank white wait.
+         main.tsx removes it the moment React is about to take over. -->
+    <div
+      id="boot"
+      aria-hidden="true"
+      style="position: fixed; inset: 0; z-index: 2147483647; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: #080807; color: #a99c8c; font-family: Georgia, 'Times New Roman', serif; font-size: 12px; letter-spacing: 0.34em; text-transform: uppercase;"
+    >
+      <span>Nostalgia Radio</span>
+      <span
+        style="display: block; width: 140px; height: 1px; background: linear-gradient(90deg, transparent, #a99c8c, transparent)"
+      ></span>
+    </div>
     <div id="root"></div>
-    <noscript>Nostalgia Radio needs JavaScript to run its player. No account is ever required.</noscript>
+    <noscript
+      style="position: fixed; left: 0; right: 0; bottom: 24px; z-index: 2147483647; text-align: center; font-family: Georgia, 'Times New Roman', serif; font-size: 13px; color: #a99c8c; padding: 0 24px;"
+    >
+      Nostalgia Radio needs JavaScript to run its player. No account is ever required.
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

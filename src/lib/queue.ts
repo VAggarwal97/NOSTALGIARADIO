@@ -50,3 +50,13 @@ export const retireReason = (origin: QueueOrigin): 'played' | null =>
 
 /** After the queue is exhausted: rotate stations — except inside a playlist. */
 export const fallsBackToStations = (origin: QueueOrigin): boolean => origin !== 'station-embed';
+
+/**
+ * When a fresh interaction (a submit, a vote, a Play click) may take the air
+ * immediately: only while the radio has never started this session. Nothing is
+ * loaded, so there is no current song to interrupt — and the click that got us
+ * here is a live user gesture, so the engine is allowed to start. `paused` is
+ * deliberate silence and stays respected; after the first start, boundaries rule.
+ */
+export const radioIsSilent = (status: string, hasRequestOnAir: boolean): boolean =>
+  status === 'idle' && !hasRequestOnAir;

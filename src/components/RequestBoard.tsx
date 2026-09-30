@@ -11,6 +11,12 @@ interface RequestBoardProps {
   /** Focuses the console ("+ suggest the first song"). */
   onRequestFirst: () => void;
   onShare: (request: SongRequest) => void;
+  /** The request on air right now — its card swaps Play for the On air state. */
+  activeRequestId: string | null;
+  /** "► Play" on an open card: hear this request immediately. */
+  onPlayRequest: (request: SongRequest) => void;
+  /** After a confirmed vote: the silent radio may air it (App decides). */
+  onMaybeAir: (request: SongRequest) => void;
 }
 
 type Load = { items: SongRequest[]; total: number } | null;
@@ -56,6 +62,9 @@ export function RequestBoard({
   requestedMissing,
   onRequestFirst,
   onShare,
+  activeRequestId,
+  onPlayRequest,
+  onMaybeAir,
 }: RequestBoardProps) {
   const [tab, setTab] = useState<RequestTab>('wanted');
   const [query, setQuery] = useState('');
@@ -155,6 +164,9 @@ export function RequestBoard({
           setPendingVote(null);
           if (result.ok) {
             setLeadingCandidate(result.request.id);
+            // A vote is a fresh gesture: on a radio that never started, that's
+            // enough to take the air. Anything already playing finishes first.
+            onMaybeAir(result.request);
           } else if (result.reason === 'already-voted') {
             setVoteNote({ id: request.id, text: 'You have already voted' });
           } else if (result.reason === 'rate-limited') {
@@ -168,7 +180,7 @@ export function RequestBoard({
           setVoteNote({ id: request.id, text: 'Vote could not be confirmed' });
         });
     },
-    [api, pendingVote],
+    [api, pendingVote, onMaybeAir],
   );
 
   const items = load?.items ?? null;
@@ -288,6 +300,13 @@ export function RequestBoard({
                 {featured.votes === 1 ? 'vote' : 'votes'}
               </p>
               <div className="leader-actions">
+                {featured.status === 'open' ? (
+                  <PlayButton
+                    request={featured}
+                    onAir={activeRequestId === featured.id}
+                    onPlay={onPlayRequest}
+                  />
+                ) : null}
                 <VoteButton
                   request={featured}
                   pending={pendingVote === featured.id}
@@ -333,6 +352,13 @@ export function RequestBoard({
                       <span aria-hidden="true">▲</span> {formatVotes(request.votes)}
                     </p>
                     <div className="request-actions">
+                      {request.status === 'open' ? (
+                        <PlayButton
+                          request={request}
+                          onAir={activeRequestId === request.id}
+                          onPlay={onPlayRequest}
+                        />
+                      ) : null}
                       <VoteButton request={request} pending={pendingVote === request.id} onVote={vote} />
                       <button
                         type="button"
@@ -361,6 +387,36 @@ export function RequestBoard({
 
 const providerLabel = (request: SongRequest) =>
   request.song.provider === 'spotify' ? 'Spotify' : 'YouTube';
+
+/**
+ * "► Play" — the listener's explicit way to hear a request right now, without
+ * waiting for a boundary. While it's on air the card shows a live state instead
+ * of a second play action. Hidden for played/unavailable items (no embed).
+ */
+function PlayButton({
+  request,
+  onAir,
+  onPlay,
+}: {
+  request: SongRequest;
+  onAir: boolean;
+  onPlay: (request: SongRequest) => void;
+}) {
+  if (onAir) {
+    return (
+      <span className="play-req-btn play-req-btn--on">
+        <span aria-hidden="true">●</span> On air
+        <span className="visually-hidden"> — {request.title} is playing on the radio now</span>
+      </span>
+    );
+  }
+  return (
+    <button type="button" className="play-req-btn" onClick={() => onPlay(request)}>
+      <span aria-hidden="true">►</span> Play
+      <span className="visually-hidden"> — hear {request.title} now</span>
+    </button>
+  );
+}
 
 function VoteButton({
   request,

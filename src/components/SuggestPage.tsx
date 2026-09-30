@@ -12,6 +12,12 @@ interface SuggestPageProps {
   /** Same artwork the radio is hearing — the page keeps the station's soul. */
   station: Station | null;
   onNotify: (message: string) => void;
+  /** The request currently on air — its card shows the live On air state. */
+  activeRequestId: string | null;
+  /** Plays a request on demand from its own card (explicit listener gesture). */
+  onPlayRequest: (request: SongRequest) => void;
+  /** After a submit or a confirmed vote: airs it only if the radio never started. */
+  onMaybeAir: (request: SongRequest) => void;
 }
 
 const HOW_IT_WORKS = [
@@ -39,7 +45,13 @@ const HOW_IT_WORKS = [
  * The station keeps playing while you browse; nothing here restarts audio,
  * and every number on the page comes from the request API, never from copy.
  */
-export function SuggestPage({ station, onNotify }: SuggestPageProps) {
+export function SuggestPage({
+  station,
+  onNotify,
+  activeRequestId,
+  onPlayRequest,
+  onMaybeAir,
+}: SuggestPageProps) {
   const [focusToken, setFocusToken] = useState(0);
   const [spotlightId, setSpotlightId] = useState<string | null>(null);
   const [requestedMissing, setRequestedMissing] = useState(false);
@@ -119,6 +131,9 @@ export function SuggestPage({ station, onNotify }: SuggestPageProps) {
             onSubmitted={(request) => {
               setRequestedMissing(false);
               setSpotlightId(request.id);
+              // A brand-new request goes straight to a silent radio — nothing to
+              // interrupt, and the submit click is the gesture that allows it.
+              onMaybeAir(request);
             }}
             onJumpTo={jumpTo}
           />
@@ -150,6 +165,9 @@ export function SuggestPage({ station, onNotify }: SuggestPageProps) {
           requestedMissing={requestedMissing}
           onRequestFirst={focusConsole}
           onShare={(request) => void shareRequest(request)}
+          activeRequestId={activeRequestId}
+          onPlayRequest={onPlayRequest}
+          onMaybeAir={onMaybeAir}
         />
 
         <p className="suggest-keep">

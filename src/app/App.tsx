@@ -12,7 +12,13 @@ import {
   isPlayableDecision,
   navigateSource,
 } from '../lib/sourcePolicy';
-import { fallsBackToStations, pickNextRequest, requestStationId, retireReason } from '../lib/queue';
+import {
+  fallsBackToStations,
+  pickNextRequest,
+  radioIsSilent,
+  requestStationId,
+  retireReason,
+} from '../lib/queue';
 import type { QueueOrigin } from '../lib/queue';
 import { getRequestApi } from '../lib/request-api';
 import type { SongRequest } from '../lib/request-api';
@@ -275,6 +281,7 @@ export default function App() {
   /** One request = one official provider embed, loaded like any other source. */
   const playRequest = useCallback(
     async (request: SongRequest): Promise<boolean> => {
+      if (activeRequestRef.current?.id === request.id) return true; // already on air
       const source = embedSourceForRequest(request);
       if (!source) return false;
       updateActiveRequest(request);
@@ -282,7 +289,9 @@ export default function App() {
         playerRef.current.load(requestStationId(request.id), { kind: 'embed', source });
         await playerRef.current.play();
       } catch {
-        // Engine refused (blocked autoplay, dead iframe…) — let the error path skip it.
+        // Engine refused (blocked autoplay, dead iframe…) — it never aired, so it
+        // stays open and the pill returns to the station instead of a stuck title.
+        updateActiveRequest(null);
         return false;
       }
       setAnnouncement(`Now playing ${request.title} by ${request.artist} — community request.`);
@@ -290,6 +299,32 @@ export default function App() {
       return true;
     },
     [notify, updateActiveRequest],
+  );
+
+  /**
+   * A submit or a vote may take the air right away — but only while the radio
+   * has never started this session (nothing is playing to interrupt, and the
+   * click is a live gesture). Once anything has played, the boundary rule owns
+   * the hand-off: the current song always finishes first.
+   */
+  const maybeAir = useCallback(
+    (request: SongRequest) => {
+      if (!radioIsSilent(playerRef.current.status, activeRequestRef.current !== null)) return;
+      void playRequest(request).then((started) => {
+        if (!started) notify('Press ► Play on the request to hear it.');
+      });
+    },
+    [notify, playRequest],
+  );
+
+  /** On-demand play from a request card: the listener's explicit "now". */
+  const startRequest = useCallback(
+    (request: SongRequest) => {
+      void playRequest(request).then((started) => {
+        if (!started) notify('This request could not start — try again.');
+      });
+    },
+    [notify, playRequest],
   );
 
   /**
@@ -495,7 +530,13 @@ export default function App() {
       />
 
       {route === 'suggest' ? (
-        <SuggestPage station={selected} onNotify={notify} />
+        <SuggestPage
+          station={selected}
+          onNotify={notify}
+          activeRequestId={activeRequest?.id ?? null}
+          onPlayRequest={startRequest}
+          onMaybeAir={maybeAir}
+        />
       ) : (
         <main>
           <CinematicHero

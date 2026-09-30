@@ -17,9 +17,9 @@ interface StationGalleryProps {
 
 /* The archive drifts at a walking pace — alive, never busy. */
 const DRIFT_SPEED = 22; // px per second
-const RESUME_AFTER = 4000; // manual interaction → wait, then resume
+const RESUME_AFTER = 2500; // manual interaction → wait, then resume
 const HOVER_RESUME_AFTER = 3000; // pointer leaves → breathe, then resume
-const START_DELAY = 1400; // let the first paint settle before moving
+const START_DELAY = 900; // one beat for first paint, then the rail moves
 
 /**
  * The right side of the hero: eight miniature posters, one per listening

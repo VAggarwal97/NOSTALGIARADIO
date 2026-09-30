@@ -21,6 +21,10 @@ import './styles/suggest.css';
 const container = document.getElementById('root');
 if (!container) throw new Error('Root container missing');
 
+// The static boot screen in index.html covered the wait for this very script.
+// The app owns the viewport from here on — hand it over before React paints.
+document.getElementById('boot')?.remove();
+
 createRoot(container).render(
   <StrictMode>
     <App />

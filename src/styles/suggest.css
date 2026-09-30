@@ -678,6 +678,39 @@
   opacity: 0.75;
 }
 
+/* ── Play: hear any open request right now ────────────────────────────── */
+
+.play-req-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 22px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.play-req-btn:hover {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  border-color: var(--accent);
+}
+
+/* Live state: this request is the one on the radio — not a button. */
+.play-req-btn--on {
+  cursor: default;
+  border-style: dashed;
+}
+
 .share-btn {
   min-height: 44px;
   padding: 0;

@@ -7,6 +7,7 @@ import {
   fallsBackToStations,
   isQueueEligible,
   pickNextRequest,
+  radioIsSilent,
   requestStationId,
   retireReason,
 } from '../src/lib/queue';
@@ -139,6 +140,23 @@ describe('hand-off rules', () => {
 
   it('addresses requests through a synthetic station id', () => {
     expect(requestStationId('abc')).toBe('request:abc');
+  });
+});
+
+describe('immediate air (submit / vote on a silent radio)', () => {
+  it('airs right away only when the radio has never started this session', () => {
+    expect(radioIsSilent('idle', false)).toBe(true);
+  });
+
+  it('never interrupts: paused, loading, playing or error stay respected', () => {
+    expect(radioIsSilent('paused', false)).toBe(false);
+    expect(radioIsSilent('loading', false)).toBe(false);
+    expect(radioIsSilent('playing', false)).toBe(false);
+    expect(radioIsSilent('error', false)).toBe(false);
+  });
+
+  it('yields whenever another request is already on air', () => {
+    expect(radioIsSilent('idle', true)).toBe(false);
   });
 });
 

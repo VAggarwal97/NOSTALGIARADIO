@@ -99,12 +99,15 @@ export function CinematicHero({
 
   return (
     <section className="hero" aria-label={`Featured station: ${station.name}`}>
+      {/* The stage photo is the page's LCP — fetch it at high priority.
+          React 18 passes the lowercase attribute straight to the DOM. */}
       <img
         className="hero-art"
         key={stage}
         src={stage}
         alt={isPhoto ? '' : `${station.name} — cinematic station artwork`}
         decoding="async"
+        {...({ fetchpriority: 'high' } as Record<string, string>)}
       />
       <div className="hero-scrim" />
       <div className="hero-glow" aria-hidden="true" />
