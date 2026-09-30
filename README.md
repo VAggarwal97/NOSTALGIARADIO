@@ -130,6 +130,23 @@ is explicit: every open card carries a **`► Play`** button that airs that requ
 (it becomes a live `● On air` state while it plays). Once anything has played, the boundary
 rule owns every hand-off as described above.
 
+## Supabase foundation (built, not wired)
+
+The community layer has a production-ready backend waiting in `supabase/`: three idempotent
+migrations covering the schema (`categories → stations → songs`, plus `suggestions`, `votes`,
+`station_events`), row-level security with least-privilege grants, indexes, database-side
+rate limits that mirror the UI's rules exactly (3 suggestions / 10 votes per visitor per
+minute, one row per song id forever), and a catalogue seed generated from `src/data/*` by
+`npm run seed:sql`. Design rules: no audio bytes in Postgres — pointers only; no stored vote
+counts — totals come from the token-free `suggestion_vote_counts` view; no visitor token ever
+leaves the database; no service-role key anywhere in the repo.
+
+The public site still runs entirely on the local request store through the `getRequestApi()`
+seam (tests, demo and CI need no network and no database), so nothing changes for visitors
+until the wiring round. Moderation is already usable from the Table Editor: submissions land
+as `pending` and appear on the wall once flipped to `approved`. Full how-to, status mapping,
+error mapping and security checklist: [`supabase/README.md`](supabase/README.md).
+
 ## Run
 
 ```bash
@@ -154,6 +171,7 @@ npm run dev          # http://localhost:5173
 | `npm run ci` | The full gate: validate → test → typecheck → smoke → build |
 | `npm run preview` | Serve the production build |
 | `npm run demo:audio` | Regenerate `public/audio/demo-*.wav` (original synthesised material) |
+| `npm run seed:sql` | Regenerate `supabase/migrations/*_seed_catalogue.sql` from `src/data/*` (CI fails if the committed seed drifts) |
 
 ## Design system
 
@@ -343,8 +361,9 @@ over), the hero stage photo — the page's LCP — carries `fetchpriority="high"
   `img-src 'self' data: https:` (real artwork and hero-stage photos load as plain images),
   `frame-src` allowlist of exactly the two playback providers (`youtube.com`,
   `youtube-nocookie.com`, `open.spotify.com`), matching `script-src` additions for their
-  official API scripts, `connect-src` for the app, the playback providers and their own oEmbed
-  metadata endpoints (track metadata — no search APIs, no trackers), `object-src 'none'`,
+  official API scripts, `connect-src` for the app, the playback providers, their own oEmbed
+  metadata endpoints (track metadata — no search APIs, no trackers) and the Supabase project
+  origin reserved for the not-yet-wired community backend, `object-src 'none'`,
   `frame-ancestors 'none'`, `nosniff`,
   `Referrer-Policy: strict-origin-when-cross-origin`, Permissions-Policy with camera/mic/
   location/payment disabled. HSTS is commented out until the domain is confirmed HTTPS-only.
@@ -354,10 +373,15 @@ over), the hero stage photo — the page's LCP — carries `fetchpriority="high"
 - External links use `target=_blank rel=noopener noreferrer`.
 - Station metadata is rendered as text only — no `dangerouslySetInnerHTML` anywhere.
 - **The app stores nothing**: no `localStorage`, no cookies, no accounts, no secrets, no
-  `VITE_*` keys, no analytics. Network access is limited to the audio you press play on, the
-  official API scripts of the provider station you selected, and the oEmbed metadata lookup
-  you trigger by pasting a track link; presence and the request board sync over a local
-  `BroadcastChannel` — same browser only, nothing else crosses the network.
+  `VITE_*` keys read anywhere, no analytics. Network access is limited to the audio you press
+  play on, the official API scripts of the provider station you selected, and the oEmbed
+  metadata lookup you trigger by pasting a track link; presence and the request board sync
+  over a local `BroadcastChannel` — same browser only, nothing else crosses the network.
+- The Supabase foundation in `supabase/` inherits that posture: RLS means the publishable key
+  hands out nothing but what the policies allow, `.env.local` (git-ignored) is the only place
+  credentials may live, the service-role key is banned from the client by construction, and
+  public writes are validated in the database — a hand-crafted request obeys the same rules as
+  the UI. See `supabase/README.md` §7 for the checklist.
 
 ## Accessibility & motion
 

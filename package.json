@@ -15,7 +15,8 @@
     "smoke": "node scripts/smoke-render.mjs",
     "lint:security": "node scripts/validate-content.mjs --strict",
     "demo:audio": "node scripts/generate-demo-audio.mjs",
-    "art": "node scripts/generate-artwork.mjs"
+    "art": "node scripts/generate-artwork.mjs",
+    "seed:sql": "node scripts/emit-supabase-seed.mjs"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.3.0",
