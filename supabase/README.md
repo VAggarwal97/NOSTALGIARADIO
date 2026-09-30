@@ -39,8 +39,9 @@ whole → Run. Repeat for the next file.
 | 3 | `20260930000003_seed_catalogue.sql` | 8 categories + 37 stations (generated — see §5) |
 | 4 | `20260930000004_admin_panel.sql` | Admin authz tables, `is_admin()`, admin policies, activity log, settings, `request_wall` view (see §9) |
 | 5 | `20260930000005_public_wiring.sql` | Seamless `approved` default, widened public INSERT policy, `suggestions` in the realtime publication, `wall_board()` query function (see §10) |
+| 6 | `20260930000006_definer_rate_limits.sql` | Rate-limit triggers as `security definer` — without it every public insert fails with `42501` (the counters read `visitor_token`, which anon may never select) |
 
-All five are **idempotent** — re-running any of them is safe.
+All six are **idempotent** — re-running any of them is safe.
 
 **Verify afterwards** (SQL Editor):
 
@@ -66,6 +67,11 @@ select proname from pg_proc where proname = 'wall_board';     -- 1 row
 select title, votes from wall_board('wanted', '', 5);      -- votes desc, approved only
 select title, created_at from wall_board('recent', '', 5); -- created_at desc
 select count(*) from wall_board('wanted', 'zzz-no-match', 60); -- 0 → search works
+
+-- migration 6 (both counters must be definer with a pinned path):
+select proname, prosecdef, proconfig from pg_proc
+ where proname in ('enforce_suggestion_rate', 'enforce_vote_rate');
+-- 2 rows, prosecdef = t, search_path = "{public,pg_temp}" each
 ```
 
 ---
@@ -382,8 +388,9 @@ supabase-js; the smoke render proves the unconfigured state even when
 
 ### Setup
 
-1. Apply migration 5 (§1) — required for seamless inserts, realtime and
-   `wall_board()`.
+1. Apply migrations 5 **and** 6 (§1) — 5 for seamless inserts, realtime and
+   `wall_board()`; 6 so the rate-limit counters stop rejecting every public
+   insert with `42501`.
 2. Local: `.env.example` → `.env.local` → `npm run dev`.
 3. **Vercel:** Project → Settings → Environment Variables → add the *same two
    values* (Production) → **Redeploy**. Vite bakes `VITE_*` at build time, so

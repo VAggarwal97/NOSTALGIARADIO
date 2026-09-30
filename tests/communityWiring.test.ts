@@ -33,6 +33,7 @@ const read = (relative: string): string =>
   readFileSync(fileURLToPath(new URL(relative, import.meta.url)), 'utf8').replace(/\r\n/g, '\n');
 
 const wiring = read('../supabase/migrations/20260930000005_public_wiring.sql');
+const rateLimits = read('../supabase/migrations/20260930000006_definer_rate_limits.sql');
 
 const yt = (id: string): string => `https://www.youtube.com/watch?v=${id}`;
 const ytId = (index: number): string => `${String(index).padStart(2, '0')}${'a'.repeat(9)}`;
@@ -737,5 +738,33 @@ describe('public wiring sources — shared config, no secrets', () => {
     expect(columns.length).toBeGreaterThan(0);
     expect(columns).not.toContain('visitor_token');
     expect(columns).not.toContain('status ='); // reads never dictate states
+  });
+});
+
+/* ── Rate-limit triggers: owner counters, zero new public surface ────────── */
+
+describe('rate-limit migration — counters run as definer, tokens stay hidden', () => {
+  const bodyOf = (fn: string): string =>
+    rateLimits.match(new RegExp(`function public\\.${fn}\\(\\)[\\s\\S]*?\\n\\$\\$;`))?.[0] ?? '';
+
+  it('replaces both counters with security definer and a pinned search_path', () => {
+    for (const fn of ['enforce_suggestion_rate', 'enforce_vote_rate']) {
+      const body = bodyOf(fn);
+      expect(body.length, fn).toBeGreaterThan(0);
+      expect(body, fn).toContain('security definer');
+      expect(body, fn).toContain('set search_path = public, pg_temp');
+      expect(body, fn).toContain('visitor_token'); // the count that anon may not run
+      expect(body, fn).toContain("errcode = 'P0001'"); // still the mapped rate-limit signal
+    }
+  });
+
+  it('grants the browser no new privilege — tokens keep having no public SELECT', () => {
+    // only executable statements count; the header comments quote the old hint
+    const executable = rateLimits
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('--'))
+      .join('\n');
+    expect(executable).not.toMatch(/\bgrant\b/i); // a fix, not a grant widening
+    expect(executable).not.toMatch(/alter\s+default\s+privileges/i);
   });
 });

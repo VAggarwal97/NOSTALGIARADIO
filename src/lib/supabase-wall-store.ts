@@ -80,7 +80,33 @@ const isPubRow = (value: unknown): value is Omit<WallRow, 'votes' | 'last_voted_
   );
 };
 
+/** The column is uuid; bundled station ids are text slugs ('truck-wala-radio'). */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function createSupabaseWallStore(client: SupabaseClient): WallStore {
+  /**
+   * Station stamps on suggestions are resolved once per slug. The stamp is
+   * optional metadata (nullable column, no policy requirement): an unknown
+   * slug or a failed lookup inserts NULL instead of failing the submit —
+   * a broken station lookup must never cost a listener their request.
+   */
+  const stationUuidCache = new Map<string, string | null>();
+  const resolveStationUuid = async (value: string | null): Promise<string | null> => {
+    if (!value) return null;
+    if (UUID_PATTERN.test(value)) return value; // already a database id
+    const cached = stationUuidCache.get(value);
+    if (cached !== undefined) return cached;
+    const { data, error } = await client
+      .from('stations')
+      .select('id')
+      .eq('slug', value)
+      .maybeSingle();
+    if (error) return null; // transient — deliberately not cached
+    const uuid = typeof data?.id === 'string' && data.id ? data.id : null;
+    stationUuidCache.set(value, uuid);
+    return uuid;
+  };
+
   return {
     async board(tab, query, limit) {
       const { data, error } = await client.rpc('wall_board', {
@@ -132,9 +158,10 @@ export function createSupabaseWallStore(client: SupabaseClient): WallStore {
     },
 
     async insertSuggestion(row: NewSuggestion) {
+      const station_id = await resolveStationUuid(row.station_id); // slug → uuid for the column
       const { data, error } = await client
         .from('suggestions')
-        .insert(row) // no `status` — the column default decides, not the browser
+        .insert({ ...row, station_id }) // no `status` — the column default decides, not the browser
         .select(PUBLIC_COLUMNS)
         .maybeSingle();
       if (error) throwPg(error);
