@@ -23,12 +23,17 @@ const isTypingTarget = (target: EventTarget | null): boolean => {
 };
 
 /** App-wide keyboard controls. Every action also has a visible control. */
-export function useKeyboardShortcuts(handlers: ShortcutHandlers): void {
+export function useKeyboardShortcuts(handlers: ShortcutHandlers, disabled = false): void {
   const ref = useRef(handlers);
   ref.current = handlers;
+  const disabledRef = useRef(disabled);
+  disabledRef.current = disabled;
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      // The admin panel owns its own keys: no radio shortcuts while typing or
+      // operating the control room.
+      if (disabledRef.current) return;
       const handlersNow = ref.current;
 
       if (event.key === 'Escape') {

@@ -76,10 +76,12 @@ Vite + React + TypeScript · two views · no login · no database · static CDN 
   payment code — swap the `href` when the real link exists.
 - **Overlays only**: search (command palette), station details, keyboard help, toasts.
 
-Deliberately absent: rails/grids of cards, category sections, footer blocks, sidebars,
-category pages, logins, avatars, wishlists, dashboards, notifications, admin/analytics
-widgets, filter panels, dense tables, fabricated listener counts, progress or vote totals,
-decorative controls, autoplay.
+Deliberately absent from the public experience: rails/grids of cards, category sections,
+footer blocks, sidebars, category pages, logins, avatars, wishlists, dashboards,
+notifications, admin/analytics widgets, filter panels, dense tables, fabricated listener
+counts, progress or vote totals, decorative controls, autoplay. The one private exception is
+`/admin` — an unlinked control room for the site owner (email-gated, database-authorized);
+visitors never see or reach it from the UI (see “Admin control room” below).
 
 ## The community wall: `/suggest-music`
 
@@ -132,7 +134,7 @@ rule owns every hand-off as described above.
 
 ## Supabase foundation (built, not wired)
 
-The community layer has a production-ready backend waiting in `supabase/`: three idempotent
+The community layer has a production-ready backend waiting in `supabase/`: four idempotent
 migrations covering the schema (`categories → stations → songs`, plus `suggestions`, `votes`,
 `station_events`), row-level security with least-privilege grants, indexes, database-side
 rate limits that mirror the UI's rules exactly (3 suggestions / 10 votes per visitor per
@@ -146,6 +148,22 @@ seam (tests, demo and CI need no network and no database), so nothing changes fo
 until the wiring round. Moderation is already usable from the Table Editor: submissions land
 as `pending` and appear on the wall once flipped to `approved`. Full how-to, status mapping,
 error mapping and security checklist: [`supabase/README.md`](supabase/README.md).
+
+## Admin control room (`/admin`, built)
+
+A private, deliberately unlinked control room lives at `/admin` — no public button, no
+password, no signup:
+
+- **Access gate**: enter an authorized email → Supabase Auth sends a one-time code → the
+  *database* decides entry (`is_admin()` over `admin_users`, enforced by RLS — a bypassed
+  front end still reads and writes nothing). Unknown addresses get one identical refusal.
+- **Dashboard**: live content/community counts and system status, measured by the page's own
+  queries (no decorative numbers). **Suggestions**: approve / reject / mark played / delete,
+  with the audit trail stamped server-side. **Activity log**: rows written by database
+  triggers, so a modified client cannot hide what happened.
+- Bootstrap is one SQL statement after the owner's first sign-in (documented in
+  [`supabase/README.md`](supabase/README.md) §9). The panel ships in its own lazy chunk —
+  the public bundle never downloads Supabase code.
 
 ## Run
 
@@ -164,9 +182,9 @@ npm run dev          # http://localhost:5173
 | `npm run art` | Regenerate `public/art/*.svg` (12 original procedural scenes) |
 | `npm run validate:content` | Content gate: unique IDs, valid categories, flagship per category (exists · marked · two-line title · accent), artwork on disk, safe URL protocols, required fields, no executable markup |
 | `npm run lint:security` | Same gate in `--strict` mode (warnings fail) |
-| `npm test` | Vitest: URL safety, source policy, catalog/search, the request board (dedupe, rate limits, one vote per visitor, ranking rules), the community queue (eligibility, hand-off, retire rules), session backdrop draw, provider metadata resolution, spec invariants |
+| `npm test` | Vitest: URL safety, source policy, catalog/search, the request board (dedupe, rate limits, one vote per visitor, ranking rules), the community queue (eligibility, hand-off, retire rules), session backdrop draw, provider metadata resolution, spec invariants, Supabase seed drift + admin-panel security invariants |
 | `npm run typecheck` | `tsc -b` |
-| `npm run smoke` | Renders both views (`/` and `/suggest-music`) to HTML through Vite SSR and asserts structure, honest empty states and no fabricated data |
+| `npm run smoke` | Renders `/`, `/suggest-music` and `/admin` to HTML through Vite SSR and asserts structure, the access gate's honest states, empty states and no fabricated data |
 | `npm run build` | Validate → typecheck → Vite production build into `dist/` |
 | `npm run ci` | The full gate: validate → test → typecheck → smoke → build |
 | `npm run preview` | Serve the production build |

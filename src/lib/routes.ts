@@ -6,14 +6,20 @@
  */
 
 export const SUGGEST_PATH = '/suggest-music';
+export const ADMIN_PATH = '/admin';
 
-export type RouteName = 'home' | 'suggest';
+export type RouteName = 'home' | 'suggest' | 'admin';
 
 export const homeHref = (): string => '/';
 export const suggestHref = (): string => SUGGEST_PATH;
+export const adminHref = (): string => ADMIN_PATH;
 
-export const routeFromPathname = (pathname: string): RouteName =>
-  pathname.replace(/\/+$/, '') === SUGGEST_PATH ? 'suggest' : 'home';
+export const routeFromPathname = (pathname: string): RouteName => {
+  const trimmed = pathname.replace(/\/+$/, '');
+  if (trimmed === SUGGEST_PATH) return 'suggest';
+  if (trimmed === ADMIN_PATH) return 'admin';
+  return 'home';
+};
 
 /** Shared-request deep link: /suggest-music?request=<id>. */
 export const requestIdFromSearch = (search: string): string | null => {

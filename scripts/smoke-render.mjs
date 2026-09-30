@@ -119,6 +119,55 @@ try {
     ],
   ];
 
+  // Fourth pass: the control room. SSR never executes effects, so the admin
+  // chunk never loads here — the route must render its loading line without
+  // touching the public shell. The gate screens themselves are then rendered
+  // directly from the module: with no Supabase key in CI, the honest first
+  // screen is the not-configured state.
+  windowStub.location.pathname = '/admin';
+  const adminRouteHtml = renderToString(createElement(App));
+  windowStub.location.pathname = '/';
+
+  const adminModule = await server.ssrLoadModule('/src/admin/AdminApp.tsx');
+  const unconfiguredHtml = renderToString(createElement(adminModule.default));
+  const gateHtml = renderToString(
+    createElement(adminModule.AccessGate, {
+      busy: false,
+      error: null,
+      expired: false,
+      onSubmit: () => {},
+    }),
+  );
+  const deniedHtml = renderToString(
+    createElement(adminModule.AccessDenied, { onRetry: () => {} }),
+  );
+
+  const adminChecks = [
+    ['routes /admin to the control room', adminRouteHtml.includes('Opening the control room')],
+    [
+      'no public shell at /admin',
+      !adminRouteHtml.includes('station-grid') && !adminRouteHtml.includes('Player controls'),
+    ],
+    [
+      'the public UI never links to the admin',
+      !html.includes('href="/admin"') && !suggestHtml.includes('href="/admin"'),
+    ],
+    [
+      'the admin app states its unconfigured state honestly',
+      unconfiguredHtml.includes('Supabase is not configured'),
+    ],
+    [
+      'the access gate asks for an authorized email',
+      /authorized email/i.test(gateHtml) && gateHtml.includes('type="email"'),
+    ],
+    ['the gate has no password field', !/type="password"/i.test(gateHtml + unconfiguredHtml)],
+    [
+      'no dashboard chrome before authentication',
+      !/Sign out|Activity log/i.test(gateHtml + unconfiguredHtml + deniedHtml),
+    ],
+    ['the denial reveals nothing about who is authorized', /not authorized/i.test(deniedHtml)],
+  ];
+
   const suggestChecks = [
     ['renders the suggest page shell', suggestHtml.includes('suggest-page')],
     ['renders the community hero', /community radio/i.test(suggestHtml) && /your music/i.test(suggestHtml)],
@@ -136,11 +185,13 @@ try {
   ];
 
   let failed = 0;
-  for (const [name, ok] of [...checks, ...stageChecks, ...suggestChecks]) {
+  for (const [name, ok] of [...checks, ...stageChecks, ...suggestChecks, ...adminChecks]) {
     console.log(`  ${ok ? 'ok  ' : 'FAIL'}  ${name}`);
     if (!ok) failed += 1;
   }
-  console.log(`  rendered ${html.length} + ${suggestHtml.length} bytes of HTML`);
+  console.log(
+    `  rendered ${html.length} + ${suggestHtml.length} + ${adminRouteHtml.length} bytes of HTML`,
+  );
 
   if (failed > 0) {
     console.error('  smoke render failed.');

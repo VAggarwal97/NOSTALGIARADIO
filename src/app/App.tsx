@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
+import type { ComponentType, CSSProperties } from 'react';
 
 import { CATEGORY_MAP, isCategoryId } from '../data/categories';
 import { STATIONS } from '../data/stations';
@@ -81,6 +81,26 @@ export default function App() {
   const [route, setRoute] = useState<RouteName>(() =>
     typeof window === 'undefined' ? 'home' : routeFromPathname(window.location.pathname),
   );
+
+  // The control room (/admin) ships in its own chunk — the Supabase client and
+  // every admin screen stay out of the public bundle until someone actually
+  // opens the gate. SSR renders the loading line and never imports it.
+  const [adminModule, setAdminModule] = useState<{ default: ComponentType } | null>(null);
+  const [adminLoadFailed, setAdminLoadFailed] = useState(false);
+  useEffect(() => {
+    if (route !== 'admin' || adminModule) return;
+    let cancelled = false;
+    void import('../admin/AdminApp')
+      .then((module) => {
+        if (!cancelled) setAdminModule(module);
+      })
+      .catch(() => {
+        if (!cancelled) setAdminLoadFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [route, adminModule]);
 
   // What the community queue currently has on air — the pill, hero and dock
   // describe the request instead of pretending the station is playing.
@@ -470,23 +490,27 @@ export default function App() {
     [notify],
   );
 
-  useKeyboardShortcuts({
-    togglePlay: () => void togglePlay(),
-    previous: () => stepOrSeek(-1),
-    next: () => stepOrSeek(1),
-    toggleMute: () => volumeGuard(() => player.toggleMute()),
-    openSearch,
-    toggleHelp: () => {
-      setInfoOpen(false);
-      setSearchOpen(false);
-      setHelpOpen((open) => !open);
+  useKeyboardShortcuts(
+    {
+      togglePlay: () => void togglePlay(),
+      previous: () => stepOrSeek(-1),
+      next: () => stepOrSeek(1),
+      toggleMute: () => volumeGuard(() => player.toggleMute()),
+      openSearch,
+      toggleHelp: () => {
+        setInfoOpen(false);
+        setSearchOpen(false);
+        setHelpOpen((open) => !open);
+      },
+      share: () => void share(selected),
+      surprise,
+      closeOverlays,
+      volumeUp: () => volumeGuard(() => player.setVolume(player.volume + 0.1)),
+      volumeDown: () => volumeGuard(() => player.setVolume(player.volume - 0.1)),
     },
-    share: () => void share(selected),
-    surprise,
-    closeOverlays,
-    volumeUp: () => volumeGuard(() => player.setVolume(player.volume + 0.1)),
-    volumeDown: () => volumeGuard(() => player.setVolume(player.volume - 0.1)),
-  });
+    // The control room owns its own keys — radio shortcuts stay out of /admin.
+    route === 'admin',
+  );
 
   const requestOnAir = Boolean(
     activeRequest && player.stationId === requestStationId(activeRequest.id),
@@ -514,6 +538,30 @@ export default function App() {
   // Provider stations keep their official iframe visible above the pill.
   const dockProvider =
     player.engine === 'youtube' || player.engine === 'spotify' ? player.engine : null;
+
+  // The control room replaces the whole public shell: no navbar, no player
+  // chrome, no public shortcuts. Its chunk loads only on this route.
+  if (route === 'admin') {
+    if (adminLoadFailed) {
+      return (
+        <div className="admin-root" role="alert">
+          <p className="admin-boot">The control room could not load. Reload the page to try again.</p>
+        </div>
+      );
+    }
+    const Admin = adminModule?.default;
+    return (
+      <div className="admin-root">
+        {Admin ? (
+          <Admin />
+        ) : (
+          <p className="admin-boot" role="status">
+            Opening the control room…
+          </p>
+        )}
+      </div>
+    );
+  }
 
   const shellStyle = {
     '--accent': selected ? stationAccent(selected) : undefined,
