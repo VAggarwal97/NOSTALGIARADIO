@@ -7,38 +7,40 @@ import { adminHref, routeFromPathname } from '../src/lib/routes';
 import {
   MIGRATION_HINT,
   isMissingMigrationError,
-  isValidEmail,
   mapDbError,
-  mapSendError,
-  mapVerifyError,
-  maskEmail,
-} from '../src/admin/gateUtils';
+} from '../src/admin/adminErrors';
 
 /**
- * Admin panel invariants — the security of /admin lives in SQL, so the SQL is
- * what this file pins down:
+ * Admin panel invariants. The panel has NO login — no gate in the UI, no
+ * authorization layer in SQL (migration 8 retires admin_users and is_admin())
+ * — so what this file pins down is the set of guarantees that must survive
+ * that openness:
  *
- *  1. Authorization is a server-side, security-definer decision the browser
- *     cannot skip (email gate is UX; RLS is the wall).
- *  2. visitor_token never reaches any grant or view.
- *  3. The audit log is trigger-written, session-scoped and secret-free.
- *  4. The React side holds no passwords, no storage writes, no service keys.
+ *  1. visitor_token never reaches any SELECT grant, on any migration.
+ *  2. The audit log stays trigger-written, JWT-scoped and secret-free.
+ *  3. Migration 8 opens every managed table explicitly and documents its
+ *     tradeoff instead of hiding it.
+ *  4. The React side holds no passwords, no session storage, no service keys,
+ *     and no sign-in remnants.
  */
 
 const read = (relative: string): string =>
   readFileSync(fileURLToPath(new URL(relative, import.meta.url)), 'utf8').replace(/\r\n/g, '\n');
 
-const migration = read('../supabase/migrations/20260930000004_admin_panel.sql');
+const migration4 = read('../supabase/migrations/20260930000004_admin_panel.sql');
+const migration8 = read('../supabase/migrations/20261002000008_open_panel.sql');
 
 const adminSources = [
   'AdminApp.tsx',
   'AdminShell.tsx',
   'supabaseClient.ts',
-  'gateUtils.ts',
+  'adminErrors.ts',
   'adminTypes.ts',
   'pageSupport.tsx',
   'pages/DashboardPage.tsx',
   'pages/SuggestionsPage.tsx',
+  'pages/CataloguePage.tsx',
+  'pages/SettingsPage.tsx',
   'pages/ActivityPage.tsx',
 ].map((file) => ({ file, text: read(`../src/admin/${file}`) }));
 
@@ -50,79 +52,148 @@ const sliceBetween = (sql: string, start: string, end: string): string => {
   return sql.slice(from, to);
 };
 
-describe('admin migration — authorization spine', () => {
-  it('keeps both authorization probes security-definer with a pinned search_path', () => {
-    expect(migration).toMatch(
-      /create or replace function public\.is_admin\(\)[\s\S]*?security definer[\s\S]*?set search_path = public/,
-    );
-    expect(migration).toMatch(
-      /create or replace function public\.admin_role\(\)[\s\S]*?security definer[\s\S]*?set search_path = public/,
-    );
+const MANAGED_TABLES = [
+  'categories',
+  'stations',
+  'songs',
+  'suggestions',
+  'votes',
+  'station_events',
+  'site_settings',
+  'admin_activity_logs',
+  'song_likes',
+] as const;
+
+const TOKEN_TABLES = ['votes', 'station_events', 'song_likes'] as const;
+
+describe('open panel migration — the authorization layer is retired', () => {
+  it('drops the is_admin() policies before the functions they parse', () => {
+    expect(migration8).toContain('drop policy if exists %I on public.%I');
+    const policyDrop = migration8.indexOf('drop policy if exists');
+    const functionDrop = migration8.indexOf('drop function if exists public.is_admin()');
+    expect(policyDrop).toBeGreaterThanOrEqual(0);
+    expect(functionDrop).toBeGreaterThan(policyDrop);
   });
 
-  it('grants execute only to authenticated and service_role — never anon', () => {
-    expect(migration).toContain('revoke execute on function public.is_admin() from public;');
-    expect(migration).toContain('revoke execute on function public.admin_role() from public;');
-    const grants = [...migration.matchAll(/grant execute on function[\s\S]*?;/g)].map((match) => match[0]);
-    expect(grants.length).toBeGreaterThanOrEqual(1);
-    for (const grant of grants) {
-      const roles = grant.slice(grant.indexOf(' to ') + 4);
-      expect(roles).not.toMatch(/\banon\b/);
-      expect(roles).not.toMatch(/\bpublic\b/);
-      expect(roles).toMatch(/authenticated/);
-      expect(roles).toMatch(/service_role/);
-    }
+  it('drops admin_users, is_admin() and admin_role() outright', () => {
+    expect(migration8).toContain('drop table if exists public.admin_users cascade;');
+    expect(migration8).toContain('drop function if exists public.is_admin();');
+    expect(migration8).toContain('drop function if exists public.admin_role();');
+    // Nothing may recreate them.
+    expect(migration8).not.toMatch(/create table if not exists public\.admin_users/);
+    expect(migration8).not.toMatch(/create or replace function public\.is_admin\(\)/);
   });
 
-  it('gives active admins full CRUD on every managed table, and nobody else', () => {
-    const section = sliceBetween(migration, '-- Admin full access', 'end $$;');
-    for (const table of [
-      'categories',
-      'stations',
-      'songs',
-      'suggestions',
-      'votes',
-      'station_events',
-      'site_settings',
-      'admin_users',
-      'admin_activity_logs',
-    ]) {
-      expect(section).toContain(`'${table}'`);
-    }
-    expect(section).toContain('using (public.is_admin()) with check (public.is_admin())');
-  });
-
-  it('enables RLS on the three new tables', () => {
-    for (const table of ['admin_users', 'admin_activity_logs', 'site_settings']) {
-      expect(migration).toMatch(
-        new RegExp(`alter table public\\.${table}\\s+enable row level security;`),
-      );
-    }
-  });
-
-  it('exposes settings to the public only when explicitly flagged', () => {
-    const policy = migration.slice(
-      migration.indexOf('create policy "public reads visible settings"'),
-    );
-    expect(policy.slice(0, 400)).toMatch(/using \(publicly_visible = true\)/);
-  });
-
-  it('grants no new public read of votes or station events', () => {
-    expect(migration).not.toMatch(/grant select on public\.votes[^;]*\banon\b/);
-    expect(migration).not.toMatch(/on public\.votes for select/);
-    expect(migration).not.toMatch(/on public\.station_events for select/);
-  });
-
-  it('holds no password or key columns anywhere', () => {
-    expect(migration).not.toMatch(/\bpassword\s+(text|varchar)/i);
-    expect(migration).not.toMatch(/service_role_key|secret\s+(text|varchar)/i);
+  it('documents the open-access tradeoff instead of hiding it', () => {
+    expect(migration8).toMatch(/tradeoff/);
+    expect(migration8).toMatch(/publishable/);
   });
 });
 
-describe('admin migration — visitor tokens stay private', () => {
+describe('open panel migration — one open policy per managed table', () => {
+  it('opens every managed table to both browser roles', () => {
+    const section = sliceBetween(migration8, '-- 2) Open policies', '-- 3) Grants');
+    for (const table of MANAGED_TABLES) {
+      expect(section, table).toContain(`'${table}'`);
+    }
+    expect(section).toContain(
+      "'create policy %I on public.%I for all to anon, authenticated using (true) with check (true)',",
+    );
+    expect(section).toContain("tbl || '_open_panel'");
+    // song_likes gets its first RLS policy here; every other table keeps its
+    // older policies alongside (policies OR together).
+    expect(section).toContain('song_likes');
+  });
+
+  it('creates the policies idempotently (drop-if-exists first)', () => {
+    expect(migration8).toMatch(
+      /execute format\('drop policy if exists %I on public\.%I', tbl \|\| '_open_panel', tbl\)/,
+    );
+  });
+
+  it('grants anon the panel verbs it needs', () => {
+    // Content tables: full DML.
+    expect(migration8).toMatch(
+      /grant insert, update, delete on public\.categories, public\.stations, public\.songs\s+to anon;/,
+    );
+    expect(migration8).toContain('grant update, delete on public.suggestions to anon;');
+    expect(migration8).toContain(
+      'grant insert, update, delete on public.site_settings to anon;',
+    );
+    // The activity trigger writes as the calling role — anon needs insert.
+    expect(migration8).toContain('grant insert, select on public.admin_activity_logs to anon;');
+    // Targeted moderation deletes.
+    expect(migration8).toContain('grant delete on public.votes to anon;');
+    expect(migration8).toContain('grant delete on public.song_likes to anon;');
+  });
+
+  it('never grants table-level SELECT on the token tables', () => {
+    for (const table of TOKEN_TABLES) {
+      expect(migration8, table).not.toMatch(
+        new RegExp(`grant select on public\\.${table}[^;]*\\banon\\b`),
+      );
+    }
+  });
+});
+
+describe('open panel migration — visitor tokens stay write-only', () => {
+  it('never puts visitor_token in any SELECT grant', () => {
+    expect(migration8).not.toMatch(/grant select[^;]*visitor_token/);
+  });
+
+  it('reads token tables only through explicit token-free column lists', () => {
+    const grants = [
+      ...migration8.matchAll(/grant select \(([^)]*)\) on public\.(\w+) to anon;/g),
+    ].map((match) => ({ columns: match[1], table: match[2] }));
+    expect(grants.length).toBeGreaterThanOrEqual(3);
+    for (const table of TOKEN_TABLES) {
+      const tableGrants = grants.filter((grant) => grant.table === table);
+      expect(tableGrants.length, table).toBeGreaterThan(0);
+      for (const grant of tableGrants) {
+        expect(grant.columns, table).not.toContain('visitor_token');
+      }
+    }
+  });
+
+  it('holds no password or key columns in either open-panel migration', () => {
+    for (const sql of [migration4, migration8]) {
+      expect(sql).not.toMatch(/\bpassword\s+(text|varchar)/i);
+      expect(sql).not.toMatch(/service_role_key|secret\s+(text|varchar)/i);
+    }
+  });
+});
+
+describe('open panel migration — the audit log still records everything', () => {
+  it('skips only JWT-less writes (SQL Editor and seeds stay out)', () => {
+    expect(migration8).toContain("current_setting('request.jwt.claims', true)");
+    expect(migration8).toContain("if claims = '{}'::jsonb then");
+    // The old auth.uid() guard would have made the anon panel invisible.
+    expect(migration8).not.toContain('if actor is null then');
+  });
+
+  it('labels open-panel writes honestly', () => {
+    expect(migration8).toContain("coalesce(claims ->> 'email', 'open panel')");
+    expect(migration8).toContain('actor := auth.uid();');
+  });
+
+  it('keeps review suggestion as its own action and writes the log table', () => {
+    expect(migration8).toContain("action := 'review suggestion';");
+    expect(migration8).toMatch(
+      /insert into public\.admin_activity_logs\s+\(admin_id, admin_email, action, entity_type, entity_label, detail\)/,
+    );
+  });
+
+  it('is not security definer — it relies on the anon insert grant instead', () => {
+    const fn = migration8.slice(migration8.indexOf('create or replace function public.log_admin_activity()'));
+    expect(fn.slice(0, 400)).not.toMatch(/security definer/);
+    expect(migration8).toMatch(/create or replace function public\.log_admin_activity\(\)[\s\S]*?set search_path/);
+  });
+});
+
+describe('migration 4 — history that still stands', () => {
   it('reads suggestions through a security-invoker view that omits the token', () => {
     const view =
-      migration.match(/create view public\.request_wall[\s\S]*?from public\.suggestions;/)?.[0] ?? '';
+      migration4.match(/create view public\.request_wall[\s\S]*?from public\.suggestions;/)?.[0] ?? '';
     expect(view).toContain('security_invoker = on');
     expect(view).not.toContain('visitor_token');
     for (const column of [
@@ -146,7 +217,9 @@ describe('admin migration — visitor tokens stay private', () => {
   });
 
   it('never grants visitor_token to a browser role', () => {
-    const grants = [...migration.matchAll(/grant select \(([\s\S]*?)\) on public\.suggestions to ([^;]+);/g)];
+    const grants = [
+      ...migration4.matchAll(/grant select \(([\s\S]*?)\) on public\.suggestions to ([^;]+);/g),
+    ];
     expect(grants.length).toBeGreaterThan(0);
     for (const grant of grants) {
       expect(grant[1]).not.toContain('visitor_token');
@@ -155,42 +228,31 @@ describe('admin migration — visitor tokens stay private', () => {
   });
 
   it('keeps request_wall readable by the public roles', () => {
-    expect(migration).toContain('grant select on public.request_wall to anon, authenticated;');
+    expect(migration4).toContain('grant select on public.request_wall to anon, authenticated;');
   });
-});
 
-describe('admin migration — audit log', () => {
-  it('skips writes that carry no session (SQL Editor and seeds stay out)', () => {
-    expect(migration).toContain('if actor is null then');
-    expect(migration).toMatch(
+  it('logs content/settings changes but never votes (no public flood)', () => {
+    expect(migration4).toMatch(
       /create trigger %I_log_activity after insert or update or delete on public\.%I/,
     );
-    const tables = sliceBetween(migration, "foreach tbl in array array[\n    'categories', 'stations', 'songs', 'suggestions', 'site_settings', 'admin_users'", 'end $$;');
+    const tables = sliceBetween(
+      migration4,
+      "foreach tbl in array array[\n    'categories', 'stations', 'songs', 'suggestions', 'site_settings', 'admin_users'",
+      'end $$;',
+    );
     expect(tables).toContain("'site_settings'");
     expect(tables).not.toContain("'votes'");
-  });
-
-  it('records sign-ins and suggestion reviews as their own actions', () => {
-    expect(migration).toContain("action := 'sign in';");
-    expect(migration).toContain("action := 'review suggestion';");
-  });
-
-  it('stores no secrets in the log table', () => {
-    const logTable =
-      migration.match(/create table if not exists public\.admin_activity_logs \([\s\S]*?\n\);/)?.[0] ?? '';
-    expect(logTable).not.toMatch(/token|password|secret/i);
-    expect(logTable).toMatch(/admin_email/);
   });
 });
 
 describe('admin sources — client-side invariants', () => {
-  it('has no password field anywhere in the admin panel', () => {
+  it('has no password or email field anywhere in the admin panel', () => {
     for (const { file, text } of adminSources) {
-      expect(text, file).not.toMatch(/type=["']password/i);
+      expect(text, file).not.toMatch(/type=["'](password|email)/i);
     }
   });
 
-  it('never writes to browser storage directly (sessions belong to Supabase Auth)', () => {
+  it('never writes to browser storage directly', () => {
     for (const { file, text } of adminSources) {
       expect(text, file).not.toMatch(/localStorage|sessionStorage/);
     }
@@ -200,6 +262,31 @@ describe('admin sources — client-side invariants', () => {
     for (const { file, text } of adminSources) {
       expect(text, file).not.toMatch(/service_role|SERVICE_ROLE/);
     }
+  });
+
+  it('holds no sign-in remnants — no gate, no OTP, no identity props', () => {
+    for (const { file, text } of adminSources) {
+      expect(text, file).not.toMatch(/AccessGate|OtpEntry|AccessDenied|AdminIdentity/);
+      expect(text, file).not.toMatch(/onAccessLost|onSignOut|signInWith|verifyOtp/);
+      expect(text, file).not.toMatch(/gateUtils/);
+    }
+    // gateUtils.ts itself must be gone from the tree.
+    expect(() =>
+      readFileSync(fileURLToPath(new URL('../src/admin/gateUtils.ts', import.meta.url)), 'utf8'),
+    ).toThrow();
+  });
+
+  it('keeps the Supabase client sessionless (persistSession off, no refresh)', () => {
+    const client = adminSources.find((entry) => entry.file === 'supabaseClient.ts')!.text;
+    expect(client).toContain('persistSession: false');
+    expect(client).toContain('autoRefreshToken: false');
+    expect(client).toContain('detectSessionInUrl: false');
+  });
+
+  it('probes readiness against the open panel before showing the shell', () => {
+    const app = adminSources.find((entry) => entry.file === 'AdminApp.tsx')!.text;
+    expect(app).toContain("from('admin_activity_logs')");
+    expect(app).toContain('Supabase is not configured');
   });
 });
 
@@ -215,45 +302,30 @@ describe('routes — the control room has its own path', () => {
   });
 });
 
-describe('gate utilities — honest copy', () => {
-  it('validates email shape', () => {
-    expect(isValidEmail('admin@nostalgiaradio.com')).toBe(true);
-    expect(isValidEmail('a.b+tag@sub.domain.co')).toBe(true);
-    expect(isValidEmail('admin@')).toBe(false);
-    expect(isValidEmail('no-at-sign')).toBe(false);
-    expect(isValidEmail('has space@x.co')).toBe(false);
-  });
-
-  it('masks the address on the verification screen', () => {
-    expect(maskEmail('admin@nostalgiaradio.com')).toBe('a••••@nostalgiaradio.com');
-    expect(maskEmail('ab@x.co')).toBe('a••@x.co');
-    expect(maskEmail('broken')).toBe('•••');
-  });
-
+describe('admin errors — honest copy', () => {
   it('recognizes a missing migration as its own honest message', () => {
     expect(isMissingMigrationError('PGRST202')).toBe(true);
+    expect(isMissingMigrationError('PGRST205')).toBe(true);
     expect(isMissingMigrationError('42P01')).toBe(true);
     expect(isMissingMigrationError('23505')).toBe(false);
+    expect(MIGRATION_HINT).toMatch(/supabase\/migrations/);
     expect(mapDbError('PGRST202', 'Could not find the function')).toBe(MIGRATION_HINT);
-    expect(mapDbError('42883', 'fn is_admin is missing')).toBe(MIGRATION_HINT);
+    expect(mapDbError('42883', 'fn wall_board is missing')).toBe(MIGRATION_HINT);
   });
 
-  it('maps authorization and database failures to usable sentences', () => {
-    expect(mapDbError('42501', 'policy')).toMatch(/Not authorized/);
+  it('maps a policy refusal to the open-panel migration, not a login hint', () => {
+    expect(mapDbError('42501', 'policy')).toMatch(/policies predate the open panel/);
+    expect(mapDbError('42501', 'policy')).not.toMatch(/Not authorized|sign in|session/i);
+  });
+
+  it('maps database failures to usable sentences', () => {
     expect(mapDbError('P0001', 'rate-limited: at most 3 suggestions per minute')).toBe(
       'rate-limited: at most 3 suggestions per minute',
     );
     expect(mapDbError('23505', 'duplicate key')).toMatch(/already exists/);
+    expect(mapDbError('23503', 'fk violation')).toMatch(/reference/);
+    expect(mapDbError('23502', 'null in column')).toMatch(/required field/);
     expect(mapDbError(null, null)).toMatch(/No changes were made/);
     expect(mapDbError(null, 'boom')).toContain('boom');
-  });
-
-  it('maps OTP and send failures without leaking internals', () => {
-    expect(mapVerifyError('OTP has expired')).toMatch(/expired/);
-    expect(mapVerifyError('Invalid login credentials')).toMatch(/did not work/);
-    expect(mapVerifyError('rate limit exceeded')).toMatch(/Wait a minute/);
-    expect(mapVerifyError('')).toMatch(/could not be verified/);
-    expect(mapSendError('rate limit exceeded')).toMatch(/Wait a minute/);
-    expect(mapSendError('boom')).toMatch(/could not be sent/);
   });
 });

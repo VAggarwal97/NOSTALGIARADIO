@@ -96,6 +96,7 @@ grant select (id, station_id, event_type, created_at) on public.station_events t
 create or replace function public.log_admin_activity()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 declare
   claims       jsonb;

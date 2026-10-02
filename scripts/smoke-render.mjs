@@ -33,6 +33,7 @@ const windowStub = {
     search: '?station=musafir',
     origin: 'http://localhost:5173',
     pathname: '/',
+    hash: '',
   },
   history: { replaceState: () => {} },
   addEventListener: () => {},
@@ -142,13 +143,14 @@ try {
 
   const adminModule = await server.ssrLoadModule('/src/admin/AdminApp.tsx');
   const unconfiguredHtml = renderToString(createElement(adminModule.default));
+  const shellModule = await server.ssrLoadModule('/src/admin/AdminShell.tsx');
   const renderOnlyClient = {
     from() {
       throw new Error('AdminShell queried the database during render');
     },
   };
   const shellHtml = renderToString(
-    createElement(adminModule.AdminShell, { sb: renderOnlyClient }),
+    createElement(shellModule.AdminShell, { sb: renderOnlyClient }),
   );
   const allAdminHtml = unconfiguredHtml + shellHtml;
 

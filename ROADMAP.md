@@ -46,7 +46,7 @@ D Live layer → E Signature radio UI → F Discovery → G Donation → H Platf
 | Momentum bars / +votes-today Rising detail | ⬜ | Batch C |
 | Queue status badges (PENDING→APPROVED→QUEUED→PLAYING→PLAYED) | ◐ | statuses exist; QUEUED/PLAYING events ⬜ |
 | Report content / metadata corrections | ⬜ | Batch H |
-| Moderation (approve/reject/delete + audit) | ✅ | route mounted — OTP gate + `is_admin()` + audit |
+| Moderation (approve/reject/delete + audit) | ✅ | route mounted — open panel (no login) + trigger audit; per-row clear votes/likes |
 
 ## 3. Live layer
 
@@ -107,8 +107,8 @@ D Live layer → E Signature radio UI → F Discovery → G Donation → H Platf
 | RLS, no service key in frontend, write-only token, URL validation | ✅ | |
 | Rate limits (client + DB), duplicate guard, server validation | ✅ | CAPTCHA ⬜ until needed |
 | Admin audit log | ✅ | DB triggers |
-| Admin panel (dashboard/suggestions/activity) | ✅ | route mounted — own lazy chunk, SSR proves it stays out of the bundle |
-| Roles + OTP (re-open admin gate) | ✅ | email OTP gate live; owner bootstrap = one SQL insert (§9) |
+| Admin panel (dashboard/suggestions/catalogue/settings/activity) | ✅ | no login (migration 8) — own lazy chunk, SSR proves it stays out of the bundle |
+| Access model: open panel, no auth | ✅ | owner directive: no login/OTP/roles of any kind — migration 8 retires `admin_users`/`is_admin()`, panel runs on the publishable key (supabase §9) |
 | Admin analytics (daily users/plays/top songs) | ⬜ | Batch H |
 | Fault isolation (any service down → radio still plays) | ✅ | |
 | Performance (lazy/pagination/CDN) | ◐ | chunk-split ✅; pagination ⬜ |
@@ -120,11 +120,11 @@ D Live layer → E Signature radio UI → F Discovery → G Donation → H Platf
 
 ## Batch log
 
-- **Batch A — Activation**: migration 6 applied + proven (submit/vote/count end-to-end via live probes), manual rows purged, admin route withdrawn → **re-mounted** (owner requested the control room back; OTP gate + bootstrap per §9). ⏳ *Awaiting: commit → Vercel redeploy → two-browser acceptance test.*
+- **Batch A — Activation**: migration 6 applied + proven (submit/vote/count end-to-end via live probes), manual rows purged, admin route withdrawn → **re-mounted** → **rebuilt with no login** (owner directive: migration 8 open panel, supabase §9). ⏳ *Awaiting: commit → Vercel redeploy → two-browser acceptance test.*
 - **Batch B — Player persistence**: storage key, boot restore with Resume (no autoplay), honest idle/ready states.
 - **Batch C — Community signals**: Community Pick ✅ (pill/dock/expanded/wall + device-vote credit) → likes ✅ → reactions → dedications → shoutouts → momentum.
 - **Batch D — Live layer**: Supabase presence → per-station counts → listening-with-you → recap/stats → realtime now-playing.
 - **Batch E — Signature UI**: tuner → sleep timer → night mode → favorites/history/mix → atmospheres/sound FX → deep links.
 - **Batch F — Discovery**: search expansion → era/mood/artist/about-this-song/archive (needs songs catalogue).
 - **Batch G — Donation**: page + tiers + UPI/provider + server-verified success (needs payment details).
-- **Batch H — Platform**: catalogue/editors → roles+OTP (admin returns) → analytics → reports/moderation → PWA.
+- **Batch H — Platform**: ~~catalogue/editors~~ → ~~roles+OTP~~ *(superseded: open panel, no auth)* → analytics → reports/moderation → PWA. *Catalogue + Settings screens shipped in the no-login rebuild (supabase §9); site-side catalogue fetch still deferred (§8).*

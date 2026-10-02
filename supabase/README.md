@@ -24,7 +24,7 @@ Browser (publishable key only)          Audio bytes
 
 ## 1. Applying the migrations
 
-Run the five files in `supabase/migrations/` **in this order**. Either way:
+Run the eight files in `supabase/migrations/` **in this order**. Either way:
 
 **SQL Editor (simplest):** Dashboard → SQL Editor → New query → paste each file
 whole → Run. Repeat for the next file.
@@ -41,8 +41,9 @@ whole → Run. Repeat for the next file.
 | 5 | `20260930000005_public_wiring.sql` | Seamless `approved` default, widened public INSERT policy, `suggestions` in the realtime publication, `wall_board()` query function (see §10) |
 | 6 | `20260930000006_definer_rate_limits.sql` | Rate-limit triggers as `security definer` — without it every public insert fails with `42501` (the counters read `visitor_token`, which anon may never select) |
 | 7 | `20261002000007_song_likes.sql` | `song_likes` + `song_like_counts` (likes counted, never stored), insert-only grants for the browser, visible-requests policy, `enforce_like_rate()` as definer from day one |
+| 8 | `20261002000008_open_panel.sql` | **No-login control room**: retires `admin_users`/`is_admin()`/`*_admin_all`, opens the panel's tables to anon+authenticated, grants token-free reads + panel DML, rewrites the audit trigger to log anon actions (see §9) |
 
-All seven are **idempotent** — re-running any of them is safe.
+All eight are **idempotent** — re-running any of them is safe.
 
 **Verify afterwards** (SQL Editor):
 
@@ -50,11 +51,10 @@ All seven are **idempotent** — re-running any of them is safe.
 select count(*) from public.categories;  -- 8
 select count(*) from public.stations;    -- 37
 select count(*) from public.songs;       -- 0 (by design, for later phases)
-select count(*) from public.admin_users; -- 0 until you bootstrap (§9)
 select relrowsecurity from pg_class where relname in
   ('categories','stations','songs','suggestions','votes','station_events',
-   'admin_users','admin_activity_logs','site_settings','song_likes');
--- 10 rows, all true
+   'admin_activity_logs','site_settings','song_likes');
+-- 9 rows, all true (admin_users dropped by migration 8)
 
 -- migration 5:
 select column_default from information_schema.columns
@@ -83,6 +83,15 @@ select proname, prosecdef, proconfig from pg_proc where proname = 'enforce_like_
 -- 1 row, prosecdef = t, search_path = "{public,pg_temp}"
 select count(*) from pg_publication_tables
  where pubname = 'supabase_realtime' and tablename = 'song_likes'; -- 0 (likes ride the poll, like votes)
+
+-- migration 8 (open panel: authorization layer retired, tokens still private):
+select to_regclass('public.admin_users') as admin_users,            -- null
+       (select count(*) from pg_proc
+         where proname in ('is_admin','admin_role')) as auth_fns;    -- 0
+select count(*) from pg_policy where polname like '%_open_panel';    -- 9
+select has_column_privilege('anon','public.votes','visitor_token','select') as token_select,        -- f
+       has_column_privilege('anon','public.votes','id','select') as id_select,                      -- t
+       has_table_privilege('anon','public.admin_activity_logs','insert') as log_insert;             -- t
 ```
 
 ---
@@ -97,7 +106,7 @@ select count(*) from pg_publication_tables
 | Database password | Supabase dashboard only | Never pasted into chats, logs or Git |
 
 - Copy `.env.example` → `.env.local` (both `.env` and `*.local` are
-  git-ignored): needed by the admin gate (§9) and the public wall (§10).
+  git-ignored): needed by the admin panel (§9) and the public wall (§10).
   The **deployed** site needs the same two values in Vercel — see §10.
 - **Rotate the database password** (Settings → Database → Reset password) if it
   was ever shared anywhere — including truncated. The service-role key must
@@ -153,7 +162,8 @@ deliberately holds a row back.
    rankings the moment it is sent.
 2. Review any time in **`/admin` → Suggestions** (Approve / Reject / Mark
    played / Delete) — or in **Table Editor → suggestions → status**. Both
-   paths run through the same RLS; only an active `admin_users` identity can.
+   paths run through the same RLS; every move from the panel is recorded in
+   the activity log as `open panel` (§9).
 3. When it airs, its status moves to **`played`** + `played_at` set (the admin
    panel's “Mark played”). Played rows are history: they never re-enter the
    queue.
@@ -252,14 +262,15 @@ side — the client's opinion of a song's status is never trusted.
    making it async mid-round would touch every consumer. The tables and admin
    policies exist; it moves to the content-editors round together with
    station CRUD.
-2. **Admin content editors** — categories, stations and songs CRUD, audio
-   testing, homepage/featured/settings/SEO screens: the tables, admin policies
-   and the trigger-written activity log already support them (§9); the screens
-   ship next. Until then the Table Editor covers content changes.
+2. **~~Admin content editors~~** — shipped: the Catalogue (categories, stations,
+   songs CRUD) and Settings (site_settings CRUD) screens live in `/admin`
+   (§9). Still deferred inside this round: audio testing and the *site-side*
+   catalogue fetch (item 1) — until that ships, the public gallery renders
+   from the bundled data while panel edits persist to the database.
 3. **Edge Functions** — the rate limits and validations above already run
-   server-side for every path; the first justified function is an admin-OTP
-   pre-check (reject non-allowlisted addresses *before* an email is sent),
-   written, deployed and tested together with its client, not shipped blind.
+   server-side for every path; nothing has justified a first function yet. Any
+   future one ships written, deployed and tested together with its client, not
+   blind.
 4. **Retiring a request to `played`** — **decided:** public `UPDATE` stays
    forbidden (§8 of the original plan, kept). When a song airs, the player's
    adapter retires it to *this session's* history (`markPlayed(id, played)`
@@ -268,100 +279,108 @@ side — the client's opinion of a song's status is never trusted.
    write path; the next admin action syncs everyone.
 5. **Station events / trending** — table and insert policy exist; emit events
    only when there is traffic worth counting.
-6. **Roles beyond `owner`** — `admin_users.role` (owner/admin/editor/moderator)
-   and `admin_role()` exist; policies currently treat every active admin as
-   full-access. Enforce per-role grants when a second person gets access.
+6. **Roles beyond `owner`** — **retired with migration 8**: there are no
+   identities left to carry roles (`admin_users`, `admin_role()` and
+   `is_admin()` are dropped). The panel is open by decision (§9); if that
+   decision is ever reversed, roles return as a new migration — not as
+   resurrected code.
 
 ---
 
 ## 9. The admin control room (`/admin`)
 
-> **Status: mounted.** The panel ships in `src/admin/` and every database rule below is
-> enforced; the app's `/admin` route loads its own lazy chunk (never the public bundle) and
-> renders the access gate.
+> **Status: open panel, no login (migration 8).** The panel ships in
+> `src/admin/` and every database rule below is enforced; the app's `/admin`
+> route loads its own lazy chunk (never the public bundle) and renders the
+> control room directly — there is no gate, no OTP and no role check in the
+> UI *or* in the database.
 
-A private, unlinked panel in the React app (`src/admin/`). No login page, no
-signup, no password — exactly the flow you specified:
+An unlinked, full-control panel in the React app (`src/admin/`). The owner's
+explicit decision: **no login of any kind** — no email, no code, no session,
+no bootstrap.
 
 ```text
-/admin → authorized email → one-time code (Supabase Auth) → is_admin()? → dashboard
+/admin → readiness probe (one query) → control room — nothing to sign in to
 ```
 
-### What's enforced where
+### What's enforced where (migration 8)
 
 | Layer | Decision |
 |---|---|
-| Supabase Auth | Identity: passwordless email OTP, no registration UI |
-| `admin_users` + `is_admin()` (security definer) | *Who* counts as admin — active row only |
-| RLS `*_admin_all` policies | What an admin may do: full CRUD on all nine tables |
-| React `/admin` | UX only: gate, screens, copy — never the security |
+| RLS `*_open_panel` policies (one per managed table) | The panel's reads and writes, open to `anon` + `authenticated` — by design |
+| Column grants on `votes` / `station_events` / `song_likes` / `suggestions` | **`visitor_token` has no SELECT grant anywhere** — these tables read back only token-free column lists |
+| `log_admin_activity()` trigger (JWT-scoped) | Every browser write is logged — this panel's as `admin_email = 'open panel'`; writes with no JWT (SQL Editor, seeds) stay out |
+| React `/admin` | UX only: honest states (not configured / opening / failed + retry) — never the security |
 
-A bypassed or hand-crafted client with the publishable key still fails every
-query: no `admin_users` row → no policy matches → nothing readable or
-writable. Unknown emails receive the same refusal (no enumeration).
+**The tradeoff, stated plainly:** the publishable key ships in the public
+bundle, so anyone who inspects it can call these endpoints — read and write
+every catalogue row, moderate suggestions, edit settings, read the activity
+log. That is what "no checks" means, and it is recorded here rather than
+hidden. What still cannot happen: reading `visitor_token` (write-only, no
+grant), inflating counts (they stay aggregates — `suggestion_vote_counts`,
+`song_like_counts`), or finding secrets in the database (there are none to
+store).
 
 ### First-time setup
 
-1. Run migration 4 (§1).
+1. Run migration 8 (§1). It retires the old authorization layer —
+   `admin_users`, `is_admin()`, `admin_role()` and every `*_admin_all` policy
+   are dropped — and opens the panel's tables.
 2. Create `.env.local` with `VITE_SUPABASE_URL` and
    `VITE_SUPABASE_PUBLISHABLE_KEY` (never the service-role key).
-3. Supabase dashboard → **Authentication → Email** must be enabled (it is by
-   default; the built-in SMTP handles a single admin's codes fine). Make sure
-   the Magic Link template contains `{{ .Token }}` — that's the 6-digit code
-   the gate asks for. (If it contains only a link, clicking it also works when
-   **Authentication → URL Configuration → Site URL** points at your `/admin`.)
-4. **Bootstrap the owner** — open `/admin`, sign in with your email (you'll see
-   *Access denied* once — correct: no row exists yet), then run:
-
-```sql
-insert into public.admin_users (id, email, role)
-select id, email, 'owner' from auth.users
- where lower(email) = 'you@example.com'
-on conflict (id) do nothing;
-```
-
-5. Open `/admin` again → verified → dashboard.
+3. Open `/admin` → the readiness probe answers → the control room. Nothing to
+   bootstrap, no email to verify.
 
 ### What each screen does
 
-- **Dashboard** — live counts (categories/stations/songs/suggestions by
-  status/votes) from this page's own queries; system status reports only what
-  was actually measured.
-- **Suggestions** — moderation: approve, reject, mark played, delete (with a
-  confirmation step). Reads use the **`request_wall`** view (RLS-applied,
-  `visitor_token` excluded); writes hit `suggestions` and stamp
-  `reviewed_at`/`reviewed_by`. Played rows are read-only: history never
-  re-enters the queue.
+- **Dashboard** — live counts (categories/stations/songs, suggestions by
+  status, votes, likes, play events) from this page's own queries; system
+  status reports only what was actually measured.
+- **Suggestions** — moderation: approve, reject, mark played, delete (each
+  behind a confirmation), plus per-row **Clear votes** / **Clear likes** when
+  a count is non-zero (targeted deletes — counts are aggregates, nothing
+  stored needs "fixing"). Reads use the **`request_wall`** view (RLS-applied,
+  `visitor_token` excluded); writes stamp `reviewed_at` (there is no identity
+  to stamp). Played rows are read-only history.
+- **Catalogue** — categories, stations and songs CRUD. Every value is checked
+  against the schema's own rules before a write is sent (slug shape, hex
+  accents, `https://` sources, provider ↔ playlist pairing); the confirm copy
+  states the cascades (a station takes its songs and station votes with it).
+  Saves land in the database immediately — the public gallery still renders
+  from the bundled data until the catalogue fetch ships (§8 item 1).
+- **Settings** — `site_settings` CRUD with type-aware validation
+  (text / number / boolean / json) and the public flag per key. Never store
+  secrets here: `publicly_visible` keys are readable by any visitor, and this
+  panel itself is open.
 - **Activity log** — rows written by *database triggers* on categories,
-  stations, songs, suggestions, settings and admin_users. SQL Editor writes
-  (no JWT) are deliberately not logged; a `last_login_at` change logs as
-  `sign in`.
+  stations, songs, suggestions and settings. SQL Editor and seed writes (no
+  JWT) are deliberately not logged; every browser write is, labelled
+  `open panel` for this panel.
 
-### Session and storage notes
+### Client and error notes
 
-- The session lives in `localStorage` under `nostalgia-admin-session`
-  (Supabase Auth's standard persistence) — **admin only**; the public site
-  still writes nothing to storage.
-- Frontend code never writes storage directly and never references
-  `service_role` — both pinned by `tests/adminPanel.test.ts`.
+- The Supabase client runs with `persistSession: false` — there is no session
+  to persist — and the panel never writes browser storage directly; it never
+  references `service_role`. All three pinned by `tests/adminPanel.test.ts`.
 - Error mapping for admin screens: `PGRST202`/`PGRST205`/`42P01`/`42883` →
-  “database not ready” with the migration hint; `42501` → the session is
-  demoted to *Access denied*; `P0001` surfaces the database's own message
-  (rate limits).
+  "database not ready" with the migration hint; `42501` → the migration hint
+  plus *"its policies predate the open panel"* (a database older than
+  migration 8); `P0001` surfaces the database's own message (rate limits).
 
-### Admin sitemap — what ships when
+### Admin sitemap
 
 ```text
-/auth        access gate, OTP, session          ✅ this round
-/dashboard   live stats, status, quick actions   ✅ this round
-/suggestions moderation queue                    ✅ this round
-/activity    trigger-written audit log           ✅ this round
-categories · stations · songs · audio test       → next round (tables + policies ready)
-homepage · featured · links · donation · SEO     → next (site_settings ready)
-votes view · analytics · audio health            → later
-roles enforcement · admin users screen · OTP     → later
-  pre-check (Edge Function)
+/dashboard   live stats, measured status, quick links    ✅
+/suggestions moderation + per-row votes/likes cleanup    ✅
+/catalogue   categories · stations · songs CRUD          ✅
+/settings    site_settings CRUD                          ✅
+/activity    trigger-written audit log                   ✅
+audio test · analytics views · site-side catalogue fetch → later (§8)
 ```
+
+The public site never links here (`href="/admin"` appears nowhere — pinned by
+the smoke render); the route exists for the owner and anyone they hand the
+URL to.
 
 ---
 
@@ -408,10 +427,11 @@ supabase-js; the smoke render proves the unconfigured state even when
 
 ### Setup
 
-1. Confirm migrations 5, 6 **and** 7 (§1) — 5 for seamless inserts, realtime
+1. Confirm migrations 5, 6, 7 **and** 8 (§1) — 5 for seamless inserts, realtime
    and `wall_board()`; 6 so the rate-limit counters stop rejecting every public
-   insert with `42501`; 7 for likes. All three are applied on the live project
-   (§1 holds the verification queries).
+   insert with `42501`; 7 for likes; 8 for the no-login `/admin` (without it
+   the panel's writes answer `42501` with the migration hint). All four are
+   applied on the live project (§1 holds the verification queries).
 2. Local: `.env.example` → `.env.local` → `npm run dev`.
 3. **Vercel:** Project → Settings → Environment Variables → add the *same two
    values* (Production) → **Redeploy**. Vite bakes `VITE_*` at build time, so
@@ -427,8 +447,8 @@ supabase-js; the smoke render proves the unconfigured state even when
    taps ♡ LIKE → **A**'s ♥ count rises the same way.
 4. Refresh both → the song, the counts and B's `♥ LIKED` state persist.
 5. `/admin` → Suggestions → Reject → the row disappears from both walls
-   (realtime or next refresh). *(First time: sign in once, then bootstrap the
-   owner row per §9 — until then the gate answers “Access denied”.)*
+   (realtime or next refresh). *(No sign-in: `/admin` opens straight into the
+   control room — §9.)*
 
 If any step shows an instant success before the database answered, or a count
 nobody voted for, it's a bug — `tests/communityWiring.test.ts` pins each of

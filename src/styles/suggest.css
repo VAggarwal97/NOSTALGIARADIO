@@ -1008,6 +1008,27 @@
     flex: 1 1 100%;
   }
 
+  /* Tabs stay one line (horizontal scroll, scrollbar hidden) so the active
+     underline keeps sitting on the hairline — wrapping stranded it mid-block.
+     The hairline moves onto the strip itself: the search row wraps below it. */
+  .board-controls {
+    border-bottom: 0;
+  }
+
+  .board-tabs {
+    flex-wrap: nowrap;
+    width: 100%;
+    padding-bottom: 1px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-bottom: 1px solid rgba(245, 238, 225, 0.1);
+    scrollbar-width: none;
+  }
+
+  .board-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
   .preview {
     grid-template-columns: auto minmax(0, 1fr);
   }
@@ -1030,5 +1051,29 @@
 
   .board-search input {
     width: 100%;
+  }
+}
+
+/* ── Smallest phones (≤340px): lift the hero so the request console
+   clears the fixed controls band (Rate / Suggest sit at 100–144px from
+   the bottom edge; the console must end above it at rest). The title is
+   word-per-line spans, so only the size and the surrounding gaps move. */
+@media (max-width: 340px) {
+  .suggest-title {
+    font-size: 2.5rem;
+  }
+
+  .suggest-lede {
+    margin-top: 16px;
+    font-size: 1.15rem;
+  }
+
+  .suggest-sub {
+    margin-top: 8px;
+    font-size: 0.875rem;
+  }
+
+  .console {
+    margin-top: 16px;
   }
 }

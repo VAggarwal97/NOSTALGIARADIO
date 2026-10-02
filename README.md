@@ -79,9 +79,9 @@ Vite + React + TypeScript · two views · no login · no database · static CDN 
 Deliberately absent from the public experience: rails/grids of cards, category sections,
 footer blocks, sidebars, category pages, logins, avatars, wishlists, dashboards,
 notifications, admin/analytics widgets, filter panels, dense tables, fabricated listener
-counts, progress or vote totals, decorative controls, autoplay. `/admin` is the private
-site-owner control room — it lives behind its own access gate, separate from the public
-experience (see “Admin control room” below).
+counts, progress or vote totals, decorative controls, autoplay. `/admin` is the site-owner
+control room — unlinked from the public experience, no sign-in of any kind (see “Admin
+control room” below).
 
 ## The community wall: `/suggest-music`
 
@@ -163,19 +163,23 @@ and the security checklist: same file, §§3, 6, 7.
 ## Admin control room (`/admin`)
 
 A private, unlinked panel (`src/admin/`), reachable only by typing the URL — never linked
-from the public site. What ships:
+from the public site. **No login**: no email, no code, no session, no roles — migration 8
+retired `admin_users`/`is_admin()` entirely and opened the panel's tables to the publishable
+key (the tradeoff is written down in
+[`supabase/README.md`](supabase/README.md) §9). What ships:
 
-- **Access gate**: enter an authorized email → Supabase Auth sends a one-time code → the
-  *database* decides entry (`is_admin()` over `admin_users`, enforced by RLS — a bypassed
-  front end still reads and writes nothing). Unknown addresses get one identical refusal.
-- **Dashboard**: live content/community counts and system status, measured by the page's own
-  queries (no decorative numbers). **Suggestions**: approve / reject / mark played / delete,
-  with the audit trail stamped server-side. **Activity log**: rows written by database
-  triggers, so a modified client cannot hide what happened.
-- Bootstrap is one SQL statement after the owner's first sign-in (documented in
-  [`supabase/README.md`](supabase/README.md) §9). The panel ships in its own lazy chunk —
-  the main bundle never *contains* Supabase code; the chunk loads only when someone opens
-  `/admin`, and the smoke render proves the SSR path never requests it.
+- **Dashboard**: live content/community counts (songs, votes, likes, play events) and
+  system status, measured by the page's own queries (no decorative numbers).
+  **Suggestions**: approve / reject / mark played / delete, plus per-row clear votes/likes,
+  with the audit trail stamped server-side. **Catalogue**: categories, stations and songs
+  CRUD with schema-aware validation. **Settings**: `site_settings` CRUD with type-aware
+  validation. **Activity log**: rows written by database triggers, so a modified client
+  cannot hide what happened — panel actions log as `open panel`.
+- What no one can do, panel or not: read `visitor_token` (write-only — no SELECT grant
+  anywhere), inflate counts (they stay aggregates), or find secrets in the database.
+- The panel ships in its own lazy chunk — the main bundle never *contains* Supabase code;
+  the chunk loads only when someone opens `/admin`, and the smoke render proves the SSR
+  path never requests it.
 
 ## Run
 
@@ -196,7 +200,7 @@ npm run dev          # http://localhost:5173
 | `npm run lint:security` | Same gate in `--strict` mode (warnings fail) |
 | `npm test` | Vitest: URL safety, source policy, catalog/search, the request board (dedupe, rate limits, one vote + one like per visitor, ranking rules), the community queue (eligibility, hand-off, retire rules), session backdrop draw, provider metadata resolution, spec invariants, Supabase seed drift + admin-panel security invariants |
 | `npm run typecheck` | `tsc -b` |
-| `npm run smoke` | Renders `/`, `/suggest-music` and `/admin` to HTML through Vite SSR and asserts structure, the access gate's honest states, empty states and no fabricated data |
+| `npm run smoke` | Renders `/`, `/suggest-music` and `/admin` to HTML through Vite SSR and asserts structure, the control room's honest states, empty states and no fabricated data |
 | `npm run build` | Validate → typecheck → Vite production build into `dist/` |
 | `npm run ci` | The full gate: validate → test → typecheck → smoke → build |
 | `npm run preview` | Serve the production build |

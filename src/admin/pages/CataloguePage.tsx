@@ -257,7 +257,7 @@ const newValues = (fields: FieldSpec[]): Values => {
   return values;
 };
 
-const displayName = (tab: Tab, values: Values): string =>
+const displayName = (values: Values): string =>
   String(values.title || values.name || '(untitled)');
 
 export function CataloguePage({ sb }: Props): JSX.Element {
@@ -391,7 +391,7 @@ export function CataloguePage({ sb }: Props): JSX.Element {
       return;
     }
     const verb = editing.mode === 'new' ? 'Added' : 'Saved';
-    setMessage(`${verb} “${displayName(tab, editing.values)}”.`);
+    setMessage(`${verb} “${displayName(editing.values)}”.`);
     setEditing(null);
     await load();
   };
@@ -478,7 +478,7 @@ export function CataloguePage({ sb }: Props): JSX.Element {
           <h2 className="admin-panel-title">
             {editing.mode === 'new'
               ? `New ${SINGULAR[tab]}`
-              : `Edit “${displayName(tab, editing.values)}”`}
+              : `Edit “${displayName(editing.values)}”`}
           </h2>
           <div className="admin-form-grid">
             {fields.map((field) => {
