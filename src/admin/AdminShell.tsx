@@ -1,38 +1,46 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import type { AdminIdentity } from './adminTypes';
 import { DashboardPage } from './pages/DashboardPage';
 import { SuggestionsPage } from './pages/SuggestionsPage';
+import { CataloguePage } from './pages/CataloguePage';
+import { SettingsPage } from './pages/SettingsPage';
 import { ActivityPage } from './pages/ActivityPage';
 
 /**
- * The control-room chrome: dense dark sidebar (spec §63), hash-based sections
- * (`#dashboard`, `#suggestions`, `#activity` — shareable, back-button-friendly,
- * no router dependency), session footer with sign-out.
+ * The control-room chrome: dense dark sidebar, hash-based sections
+ * (`#dashboard`, `#suggestions`, `#catalogue`, `#settings`, `#activity` —
+ * shareable, back-button-friendly, no router dependency).
  *
- * Only implemented sections appear as links; the full sitemap lives in
- * supabase/README.md §9 with the round each part ships in. No dead menus.
+ * There is no session footer by design: the panel has no sign-in (migration
+ * 8), so the footer states that plainly instead of pretending a session
+ * exists. Only implemented sections appear as links — no dead menus; the
+ * full sitemap lives in supabase/README.md §9.
  */
 
-type PageId = 'dashboard' | 'suggestions' | 'activity';
+type PageId = 'dashboard' | 'suggestions' | 'catalogue' | 'settings' | 'activity';
+
+const PAGE_IDS: readonly string[] = ['dashboard', 'suggestions', 'catalogue', 'settings', 'activity'];
 
 const pageFromHash = (): PageId => {
   if (typeof window === 'undefined') return 'dashboard';
   const raw = window.location.hash.replace(/^#/, '');
-  return raw === 'suggestions' || raw === 'activity' ? raw : 'dashboard';
+  return PAGE_IDS.includes(raw) ? (raw as PageId) : 'dashboard';
+};
+
+const PAGE_TITLES: Record<PageId, string> = {
+  dashboard: 'Dashboard',
+  suggestions: 'Suggestions',
+  catalogue: 'Catalogue',
+  settings: 'Settings',
+  activity: 'Activity log',
 };
 
 interface ShellProps {
   sb: SupabaseClient;
-  identity: AdminIdentity;
-  onSignOut: () => void;
-  /** A page saw RLS refuse it mid-use (42501) — the gate re-checks and likely
-   *  shows Access denied. Frontend demotion only; the database already said no. */
-  onAccessLost: () => void;
 }
 
-export function AdminShell({ sb, identity, onSignOut, onAccessLost }: ShellProps): JSX.Element {
+export function AdminShell({ sb }: ShellProps): JSX.Element {
   const [page, setPage] = useState<PageId>(pageFromHash);
   const [navOpen, setNavOpen] = useState(false);
   const [pending, setPending] = useState(0);
@@ -63,9 +71,6 @@ export function AdminShell({ sb, identity, onSignOut, onAccessLost }: ShellProps
       cancelled = true;
     };
   }, [sb, page, refreshTick]);
-
-  const pageTitle =
-    page === 'suggestions' ? 'Suggestions' : page === 'activity' ? 'Activity log' : 'Dashboard';
 
   return (
     <div className={`admin-shell${navOpen ? ' admin-nav-open' : ''}`}>
@@ -103,7 +108,23 @@ export function AdminShell({ sb, identity, onSignOut, onAccessLost }: ShellProps
             ) : null}
           </a>
 
+          <p className="admin-nav-group">Content</p>
+          <a
+            href="#catalogue"
+            className="admin-nav-link"
+            aria-current={page === 'catalogue' ? 'page' : undefined}
+          >
+            Catalogue
+          </a>
+
           <p className="admin-nav-group">System</p>
+          <a
+            href="#settings"
+            className="admin-nav-link"
+            aria-current={page === 'settings' ? 'page' : undefined}
+          >
+            Settings
+          </a>
           <a
             href="#activity"
             className="admin-nav-link"
@@ -114,21 +135,18 @@ export function AdminShell({ sb, identity, onSignOut, onAccessLost }: ShellProps
         </nav>
 
         <div className="admin-session">
-          <p className="admin-session-role">
+          <p className="admin-session-state">
             <span className="admin-session-dot" aria-hidden="true" />
-            Secure session
+            Open access — no sign-in
           </p>
-          <p className="admin-session-email" title={identity.email}>
-            {identity.email}
+          <p className="admin-session-note">
+            Anyone with this URL operates the radio's database. The tradeoff is
+            documented in supabase/README.md §9.
           </p>
-          <p className="admin-session-role-label">{identity.role}</p>
           <div className="admin-session-actions">
             <a className="admin-ghost" href="/">
               Back to the radio
             </a>
-            <button className="admin-ghost" type="button" onClick={onSignOut}>
-              Sign out
-            </button>
           </div>
         </div>
       </aside>
@@ -144,22 +162,21 @@ export function AdminShell({ sb, identity, onSignOut, onAccessLost }: ShellProps
           >
             ☰
           </button>
-          <h1 className="admin-page-title">{pageTitle}</h1>
-          <p className="admin-topbar-role">{identity.role}</p>
+          <h1 className="admin-page-title">{PAGE_TITLES[page]}</h1>
+          <p className="admin-topbar-role">Open panel</p>
         </header>
 
         <main id="admin-main" className="admin-content" tabIndex={-1}>
           {page === 'suggestions' ? (
-            <SuggestionsPage
-              sb={sb}
-              identity={identity}
-              onChanged={markChanged}
-              onAccessLost={onAccessLost}
-            />
+            <SuggestionsPage sb={sb} onChanged={markChanged} />
+          ) : page === 'catalogue' ? (
+            <CataloguePage sb={sb} />
+          ) : page === 'settings' ? (
+            <SettingsPage sb={sb} />
           ) : page === 'activity' ? (
-            <ActivityPage sb={sb} onAccessLost={onAccessLost} />
+            <ActivityPage sb={sb} />
           ) : (
-            <DashboardPage sb={sb} onAccessLost={onAccessLost} />
+            <DashboardPage sb={sb} />
           )}
         </main>
       </div>

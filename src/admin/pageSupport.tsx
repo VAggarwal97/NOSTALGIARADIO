@@ -1,20 +1,13 @@
 import type { PostgrestError } from '@supabase/supabase-js';
-import { mapDbError } from './gateUtils';
+import { mapDbError } from './adminErrors';
 
 /** Shared loading/error furniture for admin pages — honest states only
- *  (spec §80: say what failed, that nothing changed, and offer a retry). */
+ *  (say what failed, that nothing changed, and offer a retry). With the
+ *  panel open there is no session to lose: every database refusal maps to
+ *  the database's own sentence. */
 
-export const pageErrorMessage = (
-  error: PostgrestError,
-  onAccessLost: () => void,
-): string => {
-  if (error.code === '42501') {
-    // RLS refused: the database no longer considers this identity an admin.
-    onAccessLost();
-    return 'Not authorized.';
-  }
-  return mapDbError(error.code, error.message);
-};
+export const pageErrorMessage = (error: PostgrestError): string =>
+  mapDbError(error.code, error.message);
 
 export function LoadingRow({ label }: { label: string }): JSX.Element {
   return (

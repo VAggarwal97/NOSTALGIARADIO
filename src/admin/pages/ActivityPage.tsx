@@ -5,18 +5,17 @@ import { ErrorPanel, LoadingRow, formatWhen, pageErrorMessage } from '../pageSup
 import type { ActivityRow } from '../adminTypes';
 
 /**
- * Activity log (spec §56) — rows are written by database triggers, not by
- * this client, so a modified front end cannot hide what happened. Only
- * session-authenticated actions are recorded; SQL Editor changes are excluded
- * by design (documented in migration 4).
+ * Activity log — rows are written by database triggers, not by this client,
+ * so a modified front end cannot hide what happened. JWT-less writes (SQL
+ * Editor, seeds) stay out by design; every browser write is recorded, and
+ * the open panel's writes are labelled 'open panel' (migration 8).
  */
 
 interface Props {
   sb: SupabaseClient;
-  onAccessLost: () => void;
 }
 
-export function ActivityPage({ sb, onAccessLost }: Props): JSX.Element {
+export function ActivityPage({ sb }: Props): JSX.Element {
   const [rows, setRows] = useState<ActivityRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,12 +27,12 @@ export function ActivityPage({ sb, onAccessLost }: Props): JSX.Element {
       .order('created_at', { ascending: false })
       .limit(100);
     if (fetchError) {
-      setError(pageErrorMessage(fetchError, onAccessLost));
+      setError(pageErrorMessage(fetchError));
       setRows(null);
       return;
     }
     setRows((data ?? []) as unknown as ActivityRow[]);
-  }, [sb, onAccessLost]);
+  }, [sb]);
 
   useEffect(() => {
     void load();
@@ -48,8 +47,8 @@ export function ActivityPage({ sb, onAccessLost }: Props): JSX.Element {
         <div className="admin-panel admin-empty">
           <p>No activity recorded yet.</p>
           <p className="admin-note">
-            Sign-ins and every content or settings change appear here
-            automatically, written by the database itself.
+            Every content or settings change appears here automatically, written
+            by the database itself — this panel cannot switch it off.
           </p>
         </div>
       </div>
@@ -63,7 +62,7 @@ export function ActivityPage({ sb, onAccessLost }: Props): JSX.Element {
           <thead>
             <tr>
               <th scope="col">Time</th>
-              <th scope="col">Admin</th>
+              <th scope="col">Actor</th>
               <th scope="col">Action</th>
               <th scope="col">Entity</th>
             </tr>
@@ -72,7 +71,7 @@ export function ActivityPage({ sb, onAccessLost }: Props): JSX.Element {
             {rows.map((row) => (
               <tr key={row.id}>
                 <td>{formatWhen(row.created_at)}</td>
-                <td>{row.admin_email ?? 'unknown'}</td>
+                <td>{row.admin_email ?? 'open panel'}</td>
                 <td>
                   <span className="admin-action">{row.action}</span>
                 </td>
@@ -88,7 +87,9 @@ export function ActivityPage({ sb, onAccessLost }: Props): JSX.Element {
         </table>
       </div>
       <p className="admin-note">
-        Newest 100 entries. No authentication secrets are ever written here.
+        Newest 100 entries. Trigger-written and append-only from the panel's
+        side; SQL Editor and seed writes stay out of the log by design, and no
+        authentication secrets are ever written here (there are none).
       </p>
     </div>
   );

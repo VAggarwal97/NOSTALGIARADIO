@@ -6,10 +6,13 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  *
  * - Read from `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` — the two
  *   publishable values from `.env.local` (never a service-role key: Vite would
- *   inline it into a public bundle and RLS would be meaningless).
+ *   inline it into a public bundle and the database rules would be meaningless).
+ * - No sessions, ever: the control room has no sign-in (migration 8 retired
+ *   admin_users and is_admin()), so the client persists nothing to storage and
+ *   never refreshes a token it will never hold.
  * - Nothing is constructed until someone actually opens `/admin`, and the
  *   client is a singleton, so SSR and the public pages never touch it.
- * - Without the env pair the gate shows an honest "not configured" screen
+ * - Without the env pair the panel shows an honest "not configured" screen
  *   instead of failing silently — the site itself never depends on this file.
  */
 
@@ -27,28 +30,20 @@ export const isSupabaseConfigured = (): boolean =>
 
 let singleton: SupabaseClient | null = null;
 
-/**
- * Lazily build the browser client. Session persistence is scoped to the admin
- * area with its own storage key — the public site still writes nothing to
- * storage; only the admin's own sign-in session lives here (documented in
- * supabase/README.md §9).
- */
+/** Lazily build the browser client. Session persistence is off by design. */
 export const getSupabase = (): SupabaseClient | null => {
   if (!isSupabaseConfigured()) return null;
   if (!singleton) {
     try {
       singleton = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
         auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-          // Lets a magic-link click (if the email template includes one)
-          // land back on /admin signed in; harmless when no code is in the URL.
-          detectSessionInUrl: true,
-          storageKey: 'nostalgia-admin-session',
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
         },
       });
     } catch (error) {
-      // Bad values in .env.local must not crash the route — the gate explains
+      // Bad values in .env.local must not crash the route — the panel explains
       // which variables to check.
       console.error('Supabase client failed to initialize', error);
       return null;

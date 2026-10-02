@@ -5,8 +5,8 @@ import { ErrorPanel, LoadingRow, pageErrorMessage } from '../pageSupport';
 
 /**
  * Dashboard — everything on it is measured live from this page's own queries;
- * nothing is decorative (spec §6–§8). Content editors (categories/stations/
- * songs) are the next round; until then the note points at the Table Editor.
+ * nothing is decorative. Content editing lives in #catalogue, configuration
+ * in #settings; the access model line describes configuration, not a probe.
  */
 
 interface Counts {
@@ -21,11 +21,12 @@ interface Counts {
   rejected: number;
   played: number;
   votes: number;
+  likes: number;
+  playEvents: number;
 }
 
 interface Props {
   sb: SupabaseClient;
-  onAccessLost: () => void;
 }
 
 const greetingFor = (): string => {
@@ -35,13 +36,13 @@ const greetingFor = (): string => {
   return 'Good evening';
 };
 
-export function DashboardPage({ sb, onAccessLost }: Props): JSX.Element {
+export function DashboardPage({ sb }: Props): JSX.Element {
   const [counts, setCounts] = useState<Counts | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
-    const [cats, stations, songsTotal, songsActive, pending, approved, rejected, played, votes] =
+    const [cats, stations, songsTotal, songsActive, pending, approved, rejected, played, votes, likes, events] =
       await Promise.all([
         sb.from('categories').select('active'),
         sb.from('stations').select('active'),
@@ -52,12 +53,14 @@ export function DashboardPage({ sb, onAccessLost }: Props): JSX.Element {
         sb.from('request_wall').select('id', { count: 'exact', head: true }).eq('status', 'rejected'),
         sb.from('request_wall').select('id', { count: 'exact', head: true }).eq('status', 'played'),
         sb.from('votes').select('id', { count: 'exact', head: true }),
+        sb.from('song_likes').select('id', { count: 'exact', head: true }),
+        sb.from('station_events').select('id', { count: 'exact', head: true }),
       ]);
 
-    const results = [cats, stations, songsTotal, songsActive, pending, approved, rejected, played, votes];
+    const results = [cats, stations, songsTotal, songsActive, pending, approved, rejected, played, votes, likes, events];
     const failed = results.find((result) => result.error);
     if (failed?.error) {
-      setError(pageErrorMessage(failed.error, onAccessLost));
+      setError(pageErrorMessage(failed.error));
       setCounts(null);
       return;
     }
@@ -79,8 +82,10 @@ export function DashboardPage({ sb, onAccessLost }: Props): JSX.Element {
       rejected: rejected.count ?? 0,
       played: played.count ?? 0,
       votes: votes.count ?? 0,
+      likes: likes.count ?? 0,
+      playEvents: events.count ?? 0,
     });
-  }, [sb, onAccessLost]);
+  }, [sb]);
 
   useEffect(() => {
     void load();
@@ -94,7 +99,7 @@ export function DashboardPage({ sb, onAccessLost }: Props): JSX.Element {
   return (
     <div className="admin-page">
       <p className="admin-greeting">
-        {greetingFor()}, Admin{' '}
+        {greetingFor()}{' '}
         <span className="admin-note-inline">— every number below is measured live.</span>
       </p>
 
@@ -116,12 +121,12 @@ export function DashboardPage({ sb, onAccessLost }: Props): JSX.Element {
             <span className="admin-status-value">Healthy — this page’s queries answered</span>
           </li>
           <li>
-            <span className="admin-dot admin-dot-ok" aria-hidden="true" /> Authentication{' '}
-            <span className="admin-status-value">Verified — server-side access check passed</span>
-          </li>
-          <li>
             <span className="admin-dot admin-dot-ok" aria-hidden="true" /> API{' '}
             <span className="admin-status-value">Reachable — PostgREST round-trip</span>
+          </li>
+          <li>
+            <span className="admin-dot admin-dot-mute" aria-hidden="true" /> Access model{' '}
+            <span className="admin-status-value">Open panel — no sign-in (migration 8)</span>
           </li>
           <li>
             <span className="admin-dot admin-dot-mute" aria-hidden="true" /> Storage / audio{' '}
@@ -164,11 +169,19 @@ export function DashboardPage({ sb, onAccessLost }: Props): JSX.Element {
             <p className="admin-stat-value">{counts.votes}</p>
             <p className="admin-stat-label">Votes</p>
           </div>
+          <div className="admin-stat">
+            <p className="admin-stat-value">{counts.likes}</p>
+            <p className="admin-stat-label">Likes</p>
+          </div>
+          <div className="admin-stat">
+            <p className="admin-stat-value">{counts.playEvents}</p>
+            <p className="admin-stat-label">Play events</p>
+          </div>
         </div>
         <p className="admin-note">
-          Editors for categories, stations and songs arrive in the next round —
-          until then, content changes happen in the Supabase Table Editor (see
-          supabase/README.md §4).
+          Edit categories, stations and songs in the{' '}
+          <a href="#catalogue">Catalogue</a> — every save lands in the database
+          and is recorded in the activity log.
         </p>
       </section>
 
@@ -185,6 +198,12 @@ export function DashboardPage({ sb, onAccessLost }: Props): JSX.Element {
         <div className="admin-quick">
           <a className="admin-ghost" href="#suggestions">
             Review suggestions
+          </a>
+          <a className="admin-ghost" href="#catalogue">
+            Edit catalogue
+          </a>
+          <a className="admin-ghost" href="#settings">
+            Open settings
           </a>
           <a className="admin-ghost" href="#activity">
             Open activity log
