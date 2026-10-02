@@ -426,8 +426,8 @@ export function CataloguePage({ sb }: Props): JSX.Element {
     return `Delete “${(row as SongRow).title}”?`;
   };
 
-  if (error && !rows && !editing) return <ErrorPanel message={error} onRetry={() => void load()} />;
-  if (!rows) return <LoadingRow label={`Loading ${TAB_LABELS[tab].toLowerCase()}…`} />} ;
+  if (error && !rows) return <ErrorPanel message={error} onRetry={() => void load()} />;
+  if (!rows) return <LoadingRow label={`Loading ${TAB_LABELS[tab].toLowerCase()}…`} />;
 
   return (
     <div className="admin-page">
@@ -458,6 +458,12 @@ export function CataloguePage({ sb }: Props): JSX.Element {
       {formError && editing ? (
         <div className="admin-panel admin-error" role="alert">
           <p>{formError}</p>
+        </div>
+      ) : null}
+
+      {error && rows ? (
+        <div className="admin-panel admin-error" role="alert">
+          <p>{error}</p>
         </div>
       ) : null}
 
@@ -524,7 +530,7 @@ export function CataloguePage({ sb }: Props): JSX.Element {
                         <input
                           id={id}
                           className="admin-input"
-                          type={field.type === 'number' ? 'text' : 'text'}
+                          type="text"
                           inputMode={field.type === 'number' ? 'numeric' : undefined}
                           spellCheck={false}
                           value={String(value)}
@@ -567,8 +573,7 @@ export function CataloguePage({ sb }: Props): JSX.Element {
             <thead>
               <tr>
                 <th scope="col">{tab === 'categories' ? 'Name' : 'Title'}</th>
-                <th scope="col">Slug</th>
-                {tab === 'songs' ? <th scope="col">Station</th> : null}
+                <th scope="col">{tab === 'songs' ? 'Station' : 'Slug'}</th>
                 <th scope="col" className="admin-num">
                   Order
                 </th>
@@ -591,24 +596,20 @@ export function CataloguePage({ sb }: Props): JSX.Element {
                             ? (row as StationRow).title
                             : (row as SongRow).title}
                       </span>
-                      {tab !== 'songs' ? (
-                        <span className="admin-cell-muted">
-                          {' · '}
-                          {tab === 'categories'
-                            ? (row as CategoryRow).slug
-                            : (row as StationRow).slug}
-                        </span>
-                      ) : (row as SongRow).artist ? (
-                        <span className="admin-cell-muted"> · {(row as SongRow).artist}</span>
+                      {tab === 'songs' ? (
+                        (row as SongRow).artist ? (
+                          <span className="admin-cell-muted"> · {(row as SongRow).artist}</span>
+                        ) : null
                       ) : null}
                     </td>
-                    <td>{tab === 'songs' ? (row as SongRow).provider ?? '—' : ''}</td>
-                    {tab === 'songs' ? (
-                      <td>
-                        {stations.find((station) => station.id === (row as SongRow).station_id)
-                          ?.title ?? '—'}
-                      </td>
-                    ) : null}
+                    <td>
+                      {tab === 'songs'
+                        ? (stations.find((station) => station.id === (row as SongRow).station_id)
+                            ?.title ?? '—')
+                        : tab === 'categories'
+                          ? (row as CategoryRow).slug
+                          : (row as StationRow).slug}
+                    </td>
                     <td className="admin-num">
                       {tab === 'categories'
                         ? (row as CategoryRow).sort_order

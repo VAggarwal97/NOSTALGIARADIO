@@ -132,26 +132,25 @@ try {
 
   // Fourth pass: the control room. SSR never executes effects, so the admin
   // chunk never loads here — the route must render its loading line without
-  // touching the public shell. The gate screens themselves are then rendered
-  // directly from the module: with no Supabase key in CI, the honest first
-  // screen is the not-configured state.
+  // touching the public shell. The module is then rendered directly: with no
+  // Supabase key in CI, the honest first screen is the not-configured state.
+  // The shell renders too (dummy client — render must never query), proving
+  // the panel opens straight into its sections with no sign-in anywhere.
   windowStub.location.pathname = '/admin';
   const adminRouteHtml = renderToString(createElement(App));
   windowStub.location.pathname = '/';
 
   const adminModule = await server.ssrLoadModule('/src/admin/AdminApp.tsx');
   const unconfiguredHtml = renderToString(createElement(adminModule.default));
-  const gateHtml = renderToString(
-    createElement(adminModule.AccessGate, {
-      busy: false,
-      error: null,
-      expired: false,
-      onSubmit: () => {},
-    }),
+  const renderOnlyClient = {
+    from() {
+      throw new Error('AdminShell queried the database during render');
+    },
+  };
+  const shellHtml = renderToString(
+    createElement(adminModule.AdminShell, { sb: renderOnlyClient }),
   );
-  const deniedHtml = renderToString(
-    createElement(adminModule.AccessDenied, { onRetry: () => {} }),
-  );
+  const allAdminHtml = unconfiguredHtml + shellHtml;
 
   const adminChecks = [
     ['routes /admin to the control room', adminRouteHtml.includes('Opening the control room')],
@@ -168,15 +167,23 @@ try {
       unconfiguredHtml.includes('Supabase is not configured'),
     ],
     [
-      'the access gate asks for an authorized email',
-      /authorized email/i.test(gateHtml) && gateHtml.includes('type="email"'),
+      'the sign-in gate no longer exists in the module',
+      typeof adminModule.AccessGate === 'undefined' &&
+        typeof adminModule.AccessDenied === 'undefined' &&
+        typeof adminModule.OtpEntry === 'undefined',
     ],
-    ['the gate has no password field', !/type="password"/i.test(gateHtml + unconfiguredHtml)],
     [
-      'no dashboard chrome before authentication',
-      !/Sign out|Activity log/i.test(gateHtml + unconfiguredHtml + deniedHtml),
+      'the control room opens straight into its sections',
+      /Open access/i.test(shellHtml) && shellHtml.includes('Dashboard'),
     ],
-    ['the denial reveals nothing about who is authorized', /not authorized/i.test(deniedHtml)],
+    ['no password or email field in the admin app', !/type="password"|type="email"/i.test(allAdminHtml)],
+    ['no session chrome (sign out) anywhere', !/Sign out/i.test(allAdminHtml)],
+    [
+      'every section is reachable from the nav',
+      ['Suggestions', 'Catalogue', 'Settings', 'Activity log'].every((label) =>
+        shellHtml.includes(label),
+      ),
+    ],
   ];
 
   const suggestChecks = [

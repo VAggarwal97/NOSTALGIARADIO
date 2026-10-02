@@ -86,7 +86,8 @@ export default function App() {
 
   // The control room (/admin) ships in its own chunk — the Supabase client and
   // every admin screen stay out of the public bundle until someone actually
-  // opens the gate. SSR renders the loading line and never imports it.
+  // opens /admin. SSR renders the loading line and never imports it. There is
+  // no sign-in: the panel opens straight into the shell (migration 8).
   const [adminModule, setAdminModule] = useState<{ default: ComponentType } | null>(null);
   const [adminLoadFailed, setAdminLoadFailed] = useState(false);
   useEffect(() => {

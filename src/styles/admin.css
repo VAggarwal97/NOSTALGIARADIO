@@ -38,13 +38,14 @@
   outline-offset: 2px;
 }
 
-/* ---------------------------------------------------------------- gate --- */
+/* ------------------------------------------------------------ welcome --- */
+/* Honest boot states: unconfigured, opening, failed. No sign-in exists. */
 
-.gate-card {
+.admin-welcome {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  width: min(420px, calc(100vw - 32px));
+  width: min(520px, calc(100vw - 32px));
   margin: 10vh auto;
   padding: 32px 28px;
   background: #0d0d0d;
@@ -52,7 +53,7 @@
   border-radius: 10px;
 }
 
-.gate-brand {
+.admin-welcome-brand {
   margin: 0;
   font-family: 'IBM Plex Mono', ui-monospace, monospace;
   font-size: 11px;
@@ -60,19 +61,19 @@
   color: #f0604a;
 }
 
-.gate-title {
+.admin-welcome-title {
   margin: 0;
   font-size: 22px;
   font-weight: 600;
   letter-spacing: 0.02em;
 }
 
-.gate-copy {
+.admin-welcome-copy {
   margin: 0;
   color: #c9c2bb;
 }
 
-.gate-copy code {
+.admin-welcome-copy code {
   padding: 1px 5px;
   background: #191919;
   border: 1px solid #252525;
@@ -81,115 +82,124 @@
   font-size: 12px;
 }
 
-.gate-form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.gate-label {
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.admin-welcome-line {
+  margin: 0;
   color: #9a938c;
 }
 
-.gate-input {
-  min-height: 46px;
-  padding: 10px 12px;
-  background: #141414;
-  border: 1px solid #2c2c2c;
-  border-radius: 6px;
-  color: #f2ede8;
-  font-size: 15px;
-}
-
-.gate-input::placeholder {
-  color: #6d6763;
-}
-
-.gate-code {
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
-  font-size: 22px;
-  letter-spacing: 0.4em;
-  text-align: center;
-}
-
-.gate-primary {
-  min-height: 46px;
-  padding: 10px 18px;
-  background: #f0604a;
-  border: 1px solid #f0604a;
-  border-radius: 6px;
-  color: #140806;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-.gate-primary:hover:not(:disabled) {
-  background: #ff7a63;
-}
-
-.gate-primary:disabled {
-  opacity: 0.55;
-  cursor: progress;
-}
-
-.gate-secondary {
-  min-height: 44px;
-  padding: 8px 14px;
+.admin-welcome-link {
+  align-self: flex-start;
+  padding: 9px 16px;
   background: transparent;
   border: 1px solid #2c2c2c;
   border-radius: 6px;
   color: #c9c2bb;
   font-size: 13px;
+  font-family: inherit;
   cursor: pointer;
   text-decoration: none;
-  text-align: center;
 }
 
-.gate-secondary:hover:not(:disabled) {
+.admin-welcome-link:hover {
   border-color: #454545;
   color: #f2ede8;
 }
 
-.gate-error {
-  margin: 0;
-  padding: 8px 10px;
-  background: rgba(224, 82, 82, 0.1);
-  border: 1px solid rgba(224, 82, 82, 0.4);
-  border-radius: 6px;
-  color: #ef9a9a;
-  font-size: 13px;
-}
+/* ---------------------------------------------------------------- form --- */
+/* Settings and catalogue editors: dense inputs that match the admin room. */
 
-.gate-notice {
-  margin: 0;
-  padding: 8px 10px;
-  background: rgba(217, 164, 65, 0.1);
-  border: 1px solid rgba(217, 164, 65, 0.35);
-  border-radius: 6px;
-  color: #e6c384;
-  font-size: 13px;
-}
-
-.gate-footnote {
-  margin: 0;
-  color: #7d7671;
-  font-size: 12px;
-}
-
-.gate-alt {
+.admin-form {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  background: #0d0d0d;
+  border: 1px solid #252525;
+  border-radius: 8px;
 }
 
-.gate-boot-line {
-  margin: 0;
+.admin-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px 18px;
+}
+
+.admin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.admin-field-wide {
+  grid-column: 1 / -1;
+}
+
+.admin-field-label {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   color: #9a938c;
+}
+
+.admin-field-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #7d7671;
+}
+
+.admin-input,
+.admin-textarea,
+.admin-select {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  background: #141414;
+  border: 1px solid #2c2c2c;
+  border-radius: 6px;
+  color: #f2ede8;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.admin-textarea {
+  min-height: 76px;
+  resize: vertical;
+}
+
+.admin-select {
+  cursor: pointer;
+}
+
+.admin-input-wide {
+  min-width: 200px;
+}
+
+.admin-input::placeholder,
+.admin-textarea::placeholder {
+  color: #6d6763;
+}
+
+.admin-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #c9c2bb;
+  cursor: pointer;
+}
+
+.admin-check input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: #f0604a;
+  cursor: pointer;
+}
+
+.admin-form-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
 
 /* --------------------------------------------------------------- shell --- */
@@ -308,7 +318,7 @@
   border-top: 1px solid #252525;
 }
 
-.admin-session-role {
+.admin-session-state {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -316,30 +326,21 @@
   font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #7bb47a;
+  color: #e6c384;
 }
 
 .admin-session-dot {
   width: 7px;
   height: 7px;
-  background: #7bb47a;
+  background: #e6c384;
   border-radius: 50%;
 }
 
-.admin-session-email {
+.admin-session-note {
   margin: 0;
-  overflow: hidden;
-  color: #f2ede8;
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.admin-session-role-label {
-  margin: 0;
-  color: #9a938c;
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
-  font-size: 11px;
+  color: #7d7671;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .admin-session-actions {
