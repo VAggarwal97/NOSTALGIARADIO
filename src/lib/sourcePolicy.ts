@@ -21,6 +21,8 @@ export type SourceDecision =
   | { kind: 'embed'; source: EmbedSource }
   | { kind: 'open'; url: string }
   | { kind: 'check'; url: string }
+  /** Not on air — the honest destination is Suggest Music, pre-picked. */
+  | { kind: 'request'; stationId: string }
   | { kind: 'blocked'; reason: string };
 
 const YOUTUBE_HOSTS = new Set(['www.youtube.com', 'youtube.com', 'music.youtube.com']);
@@ -95,6 +97,10 @@ export function isPlayableDecision(
  * Nothing in the UI may bypass this: no scraping, no proxying, no fake playback.
  */
 export function decideSource(station: Station): SourceDecision {
+  // A station the archive knows but has no authorised source for never opens a
+  // placeholder page: it asks the listener to supply the music instead.
+  if (station.action === 'request') return { kind: 'request', stationId: station.id };
+
   const primary = station.url?.trim() ?? '';
   const unverified = station.status === 'offline' || station.status === 'unknown';
 
@@ -121,7 +127,9 @@ export function decideSource(station: Station): SourceDecision {
 }
 
 /** What the primary hero button should say. */
-export function primaryAction(station: Station): 'play' | 'open' | 'check' | 'blocked' {
+export function primaryAction(
+  station: Station,
+): 'play' | 'open' | 'check' | 'request' | 'blocked' {
   const kind = decideSource(station).kind;
   return kind === 'embed' ? 'play' : kind;
 }
@@ -135,6 +143,8 @@ export function labelForDecision(decision: SourceDecision): string {
       return 'Enter Station';
     case 'check':
       return 'Check Station';
+    case 'request':
+      return 'Request a song';
     case 'blocked':
       return 'Unavailable';
   }
@@ -149,6 +159,9 @@ export function audioUrlFor(station: Station): string | null {
 export function navigateSource(station: Station): boolean {
   const decision = decideSource(station);
   if (decision.kind === 'blocked') return false;
+  // Not-on-air stations are routed in-app by the caller (Suggest Music) —
+  // there is no external page to open and never a placeholder tab.
+  if (decision.kind === 'request') return false;
   if (isPlayableDecision(decision)) return false;
   return openExternally(decision.url);
 }

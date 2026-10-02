@@ -27,6 +27,13 @@ export const requestIdFromSearch = (search: string): string | null => {
   return value && /^[\w-]{4,64}$/.test(value) ? value : null;
 };
 
+/**
+ * Not-on-air station → Suggest Music with that station pre-picked. The station
+ * id arrives as `?station=` and the app's normal boot resolution selects it.
+ */
+export const requestHrefFor = (stationId: string): string =>
+  `${SUGGEST_PATH}?station=${encodeURIComponent(stationId)}`;
+
 export const shareHref = (requestId: string): string =>
   `${SUGGEST_PATH}?request=${encodeURIComponent(requestId)}`;
 

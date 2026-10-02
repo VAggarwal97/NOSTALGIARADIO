@@ -75,7 +75,9 @@ create table if not exists public.stations (
   provider            text check (provider is null or provider in ('youtube', 'spotify')),
   playlist_url        text check (playlist_url is null or
                         (length(playlist_url) between 1 and 1000 and playlist_url like 'https://%')),
-  action              text not null default 'check' check (action in ('play', 'check')),
+  -- play = in-app audio · check = verified external source page ·
+  -- request = not on air: routes to Suggest Music with the station pre-picked.
+  action              text not null default 'check' check (action in ('play', 'check', 'request')),
   source_type         text not null default 'external-site'
                         check (source_type in ('external-site', 'direct-audio', 'embed')),
   status              text not null default 'unknown'
@@ -127,6 +129,9 @@ comment on table public.songs is
 create index if not exists songs_station_idx on public.songs (station_id);
 create index if not exists songs_station_order_idx on public.songs (station_id, active, sort_order);
 create index if not exists songs_title_search_idx on public.songs (lower(title));
+-- Natural key for the generated catalogue seed (03): re-running it updates a
+-- station's programme row in place instead of inserting a duplicate.
+create unique index if not exists songs_station_title_key on public.songs (station_id, title);
 
 -- ----------------------------------------------------------------------------
 -- SUGGESTIONS — the community request wall ("What should play next?").

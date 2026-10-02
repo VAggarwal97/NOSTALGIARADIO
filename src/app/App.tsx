@@ -31,7 +31,7 @@ import { usePresence } from '../hooks/usePresence';
 import { hasVoted } from '../lib/community-identity';
 import { communityPick } from '../lib/community-pick';
 import { getPlayerManager } from '../services/playerManager';
-import { routeFromPathname, suggestHref } from '../lib/routes';
+import { routeFromPathname, requestHrefFor, suggestHref } from '../lib/routes';
 import type { RouteName } from '../lib/routes';
 
 import { HomeNav } from '../components/HomeNav';
@@ -177,6 +177,21 @@ export default function App() {
     toastTimer.current = window.setTimeout(() => setToast(null), 2800);
   }, []);
 
+  /**
+   * Not on air: the honest destination is Suggest Music with this station
+   * pre-picked — in-app navigation, the same player, no dead external tab.
+   */
+  const goToRequest = useCallback(
+    (station: Station) => {
+      setCategory(station.category);
+      setSelected(station);
+      setAnnouncement(`${station.name} is not on air yet. Request a song for it.`);
+      navigate(requestHrefFor(station.id));
+      notify(`Not on air yet — suggest a song for ${station.name}.`);
+    },
+    [navigate, notify],
+  );
+
   useEffect(
     () => () => {
       if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
@@ -234,6 +249,10 @@ export default function App() {
       updateActiveRequest(null);
       const decision = decideSource(station);
       if (!isPlayableDecision(decision)) {
+        if (decision.kind === 'request') {
+          goToRequest(station);
+          return;
+        }
         notify('This station opens on its own page — nothing plays here.');
         navigateSource(station);
         return;
@@ -243,7 +262,7 @@ export default function App() {
       }
       await playerRef.current.play();
     },
-    [notify, updateActiveRequest],
+    [notify, updateActiveRequest, goToRequest],
   );
 
   const togglePlay = useCallback(async () => {
@@ -258,13 +277,17 @@ export default function App() {
     }
     const decision = decideSource(station);
     if (!isPlayableDecision(decision)) {
+      if (decision.kind === 'request') {
+        goToRequest(station);
+        return;
+      }
       notify('This station opens on its own page — nothing plays here.');
       navigateSource(station);
       return;
     }
     if (current.stationId === station.id && current.isPlayable) await current.toggle();
     else await startStation(station);
-  }, [selected, startStation, notify]);
+  }, [selected, startStation, notify, goToRequest]);
 
   /**
    * The core interaction: a chip selects a station set and the hero switches to
@@ -431,6 +454,8 @@ export default function App() {
       goTo(station);
       if (isPlayableDecision(decision)) {
         void startStation(station);
+      } else if (decision.kind === 'request') {
+        goToRequest(station);
       } else {
         navigateSource(station);
         notify(
@@ -440,15 +465,19 @@ export default function App() {
         );
       }
     },
-    [goTo, startStation, notify],
+    [goTo, startStation, notify, goToRequest],
   );
 
   const openSource = useCallback(
     (station: Station) => {
+      if (decideSource(station).kind === 'request') {
+        goToRequest(station);
+        return;
+      }
       const ok = navigateSource(station);
       notify(ok ? 'Opened in a new tab.' : 'This source failed validation and was not opened.');
     },
-    [notify],
+    [notify, goToRequest],
   );
 
   const share = useCallback(

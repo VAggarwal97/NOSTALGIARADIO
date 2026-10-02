@@ -173,10 +173,16 @@ async function main() {
 
     if (station.action === 'play') {
       if (!isSafeUrl(station.audioUrl)) fail(`${at} is marked "play" without a safe audioUrl.`);
-      if (station.sourceType !== 'direct-audio') warn(`${at} plays audio but sourceType is "${station.sourceType}".`);
+      // A provider station's live source is the embed; local audio is only the
+      // fallback — the pair below owns sourceType once provider + playlist exist.
+      if (station.sourceType !== 'direct-audio' && !station.provider) {
+        warn(`${at} plays audio but sourceType is "${station.sourceType}".`);
+      }
     }
 
-    if (!['play', 'check'].includes(station.action)) fail(`${at} has invalid action "${station.action}".`);
+    if (!['play', 'check', 'request'].includes(station.action)) {
+      fail(`${at} has invalid action "${station.action}".`);
+    }
     if (!['external-site', 'direct-audio', 'embed'].includes(station.sourceType)) {
       fail(`${at} has invalid sourceType "${station.sourceType}".`);
     }

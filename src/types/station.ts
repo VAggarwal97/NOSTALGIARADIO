@@ -8,8 +8,12 @@ export type CategoryId =
   | 'work'
   | 'shops';
 
-/** `play` = first-class audio in this app. `check` = source only, never fake playback. */
-export type StationAction = 'play' | 'check';
+/**
+ * `play` = first-class audio in this app. `check` = source only, never fake
+ * playback. `request` = not on air yet: the honest action routes the listener
+ * to Suggest Music with the station pre-picked — never a dead external link.
+ */
+export type StationAction = 'play' | 'check' | 'request';
 
 export type SourceType = 'external-site' | 'direct-audio' | 'embed';
 
