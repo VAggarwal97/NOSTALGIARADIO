@@ -40,8 +40,9 @@ whole → Run. Repeat for the next file.
 | 4 | `20260930000004_admin_panel.sql` | Admin authz tables, `is_admin()`, admin policies, activity log, settings, `request_wall` view (see §9) |
 | 5 | `20260930000005_public_wiring.sql` | Seamless `approved` default, widened public INSERT policy, `suggestions` in the realtime publication, `wall_board()` query function (see §10) |
 | 6 | `20260930000006_definer_rate_limits.sql` | Rate-limit triggers as `security definer` — without it every public insert fails with `42501` (the counters read `visitor_token`, which anon may never select) |
+| 7 | `20261002000007_song_likes.sql` | `song_likes` + `song_like_counts` (likes counted, never stored), insert-only grants for the browser, visible-requests policy, `enforce_like_rate()` as definer from day one |
 
-All six are **idempotent** — re-running any of them is safe.
+All seven are **idempotent** — re-running any of them is safe.
 
 **Verify afterwards** (SQL Editor):
 
@@ -52,8 +53,8 @@ select count(*) from public.songs;       -- 0 (by design, for later phases)
 select count(*) from public.admin_users; -- 0 until you bootstrap (§9)
 select relrowsecurity from pg_class where relname in
   ('categories','stations','songs','suggestions','votes','station_events',
-   'admin_users','admin_activity_logs','site_settings');
--- 9 rows, all true
+   'admin_users','admin_activity_logs','site_settings','song_likes');
+-- 10 rows, all true
 
 -- migration 5:
 select column_default from information_schema.columns
@@ -72,6 +73,16 @@ select count(*) from wall_board('wanted', 'zzz-no-match', 60); -- 0 → search w
 select proname, prosecdef, proconfig from pg_proc
  where proname in ('enforce_suggestion_rate', 'enforce_vote_rate');
 -- 2 rows, prosecdef = t, search_path = "{public,pg_temp}" each
+
+-- migration 7 (likes: insert-only for the browser, tokens keep no SELECT):
+select has_table_privilege('anon', 'public.song_likes', 'insert')  as can_insert,
+       has_table_privilege('anon', 'public.song_likes', 'select')  as can_select;
+-- t / f
+select has_table_privilege('anon', 'public.song_like_counts', 'select') as view_select; -- t
+select proname, prosecdef, proconfig from pg_proc where proname = 'enforce_like_rate';
+-- 1 row, prosecdef = t, search_path = "{public,pg_temp}"
+select count(*) from pg_publication_tables
+ where pubname = 'supabase_realtime' and tablename = 'song_likes'; -- 0 (likes ride the poll, like votes)
 ```
 
 ---
@@ -265,6 +276,10 @@ side — the client's opinion of a song's status is never trusted.
 
 ## 9. The admin control room (`/admin`)
 
+> **Status: mounted.** The panel ships in `src/admin/` and every database rule below is
+> enforced; the app's `/admin` route loads its own lazy chunk (never the public bundle) and
+> renders the access gate.
+
 A private, unlinked panel in the React app (`src/admin/`). No login page, no
 signup, no password — exactly the flow you specified:
 
@@ -375,9 +390,14 @@ supabase-js; the smoke render proves the unconfigured state even when
   limit). “Have I voted?” is remembered on the device
   (`nostalgia-voted-requests`); the `visitor_token` (`nostalgia-visitor-id`)
   is write-only — never read back.
+- **Likes** — one row per song per device in `song_likes` (migration 7):
+  affection, never a rank. Open on `approved` **and** `played` requests — where
+  votes close with airplay — and “Have I liked?” is separate device memory
+  (`nostalgia-liked-requests`); same write-only token, same definer rate limit.
 - **Counts** — never stored, never invented: read from
-  `suggestion_vote_counts` on a light 20 s poll + on focus. They deliberately
-  do **not** ride realtime (`votes` has no public SELECT).
+  `suggestion_vote_counts` and `song_like_counts` on a light 20 s poll + on
+  focus. They deliberately do **not** ride realtime (neither `votes` nor
+  `song_likes` has a public SELECT).
 - **Rankings & search** — all four tabs (Most Wanted / Rising / Recently
   Added / Played) and the search box run through `wall_board()` in SQL, so
   ordering and limits are identical for every visitor.
@@ -388,9 +408,10 @@ supabase-js; the smoke render proves the unconfigured state even when
 
 ### Setup
 
-1. Apply migrations 5 **and** 6 (§1) — 5 for seamless inserts, realtime and
-   `wall_board()`; 6 so the rate-limit counters stop rejecting every public
-   insert with `42501`.
+1. Confirm migrations 5, 6 **and** 7 (§1) — 5 for seamless inserts, realtime
+   and `wall_board()`; 6 so the rate-limit counters stop rejecting every public
+   insert with `42501`; 7 for likes. All three are applied on the live project
+   (§1 holds the verification queries).
 2. Local: `.env.example` → `.env.local` → `npm run dev`.
 3. **Vercel:** Project → Settings → Environment Variables → add the *same two
    values* (Production) → **Redeploy**. Vite bakes `VITE_*` at build time, so
@@ -402,10 +423,12 @@ supabase-js; the smoke render proves the unconfigured state even when
    only after the insert lands.
 2. Browser **B** (another profile/machine) sees it within ~1 s (realtime) or
    ≤20 s (poll fallback).
-3. **B** votes → **A**'s count rises on the next poll/focus (≤20 s).
-4. Refresh both → the song and counts persist.
+3. **B** votes → **A**'s ▲ count rises on the next poll/focus (≤20 s). **B**
+   taps ♡ LIKE → **A**'s ♥ count rises the same way.
+4. Refresh both → the song, the counts and B's `♥ LIKED` state persist.
 5. `/admin` → Suggestions → Reject → the row disappears from both walls
-   (realtime or next refresh).
+   (realtime or next refresh). *(First time: sign in once, then bootstrap the
+   owner row per §9 — until then the gate answers “Access denied”.)*
 
 If any step shows an instant success before the database answered, or a count
 nobody voted for, it's a bug — `tests/communityWiring.test.ts` pins each of

@@ -28,6 +28,8 @@ import { stationAccent } from '../lib/hero';
 import { useRadioPlayer } from '../hooks/useRadioPlayer';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { usePresence } from '../hooks/usePresence';
+import { hasVoted } from '../lib/community-identity';
+import { communityPick } from '../lib/community-pick';
 import { getPlayerManager } from '../services/playerManager';
 import { routeFromPathname, suggestHref } from '../lib/routes';
 import type { RouteName } from '../lib/routes';
@@ -515,6 +517,8 @@ export default function App() {
   const requestOnAir = Boolean(
     activeRequest && player.stationId === requestStationId(activeRequest.id),
   );
+  // Community Pick — one helper owns the honesty rules for pill, dock and wall.
+  const pick = communityPick(activeRequest, hasVoted);
   const isCurrentTrack = Boolean(selected && player.stationId === selected.id) || requestOnAir;
   const canPlay = Boolean(selected && isPlayableDecision(decideSource(selected)));
 
@@ -630,7 +634,9 @@ export default function App() {
         canPlay={canPlay}
         provider={dockProvider}
         trackTitle={activeRequest ? activeRequest.title : player.trackTitle}
-        contextLabel={activeRequest ? 'Community request' : undefined}
+        contextLabel={pick.label}
+        contextVotes={pick.votes}
+        contextHelped={pick.helped}
         hasVolume={player.hasVolume}
         expanded={playerExpanded}
         minimized={playerMinimized}
@@ -653,7 +659,7 @@ export default function App() {
           manager={getPlayerManager()}
           provider={dockProvider}
           trackTitle={player.trackTitle}
-          stationName={activeRequest ? 'Community request' : playerStation.name}
+          stationName={pick.label ?? playerStation.name}
         />
       ) : null}
 

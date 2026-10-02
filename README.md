@@ -79,9 +79,9 @@ Vite + React + TypeScript · two views · no login · no database · static CDN 
 Deliberately absent from the public experience: rails/grids of cards, category sections,
 footer blocks, sidebars, category pages, logins, avatars, wishlists, dashboards,
 notifications, admin/analytics widgets, filter panels, dense tables, fabricated listener
-counts, progress or vote totals, decorative controls, autoplay. The one private exception is
-`/admin` — an unlinked control room for the site owner (email-gated, database-authorized);
-visitors never see or reach it from the UI (see “Admin control room” below).
+counts, progress or vote totals, decorative controls, autoplay. `/admin` is the private
+site-owner control room — it lives behind its own access gate, separate from the public
+experience (see “Admin control room” below).
 
 ## The community wall: `/suggest-music`
 
@@ -99,7 +99,8 @@ the current song never stops):
 - **The wall**: `WHAT SHOULD PLAY NEXT?` with text tabs — `MOST WANTED` (votes, ties resolve
   to the earlier submission), `RISING` (recent voting activity), `RECENTLY ADDED`, `PLAYED`
   — a featured `CURRENTLY LEADING` request, then artwork-dominant cards with `▲ VOTE` →
-  `▲ VOTED`, `SHARE ↗` (native share sheet, clipboard fallback) and inline search. Loading,
+  `▲ VOTED`, `♡ LIKE` → `♥ LIKED` (affection with its own honest count — never a rank),
+  `SHARE ↗` (native share sheet, clipboard fallback) and inline search. Loading,
   empty and error states are explicit and **there is no seed data**: an empty board says it is
   waiting for the first request, and SSR renders no fake vote digits.
 - **Deep links**: `/suggest-music?request=<id>` opens straight to that request (tab switch +
@@ -109,8 +110,8 @@ the current song never stops):
   hosts the build copies `index.html` to `dist/suggest-music/index.html`, so a cold load of
   the URL resolves too.
 
-Votes, statuses, rankings and track metadata all come from `src/lib/request-api.ts` and the
-providers' oEmbed endpoints — the client never computes, trusts or fabricates them.
+Votes, likes, statuses, rankings and track metadata all come from `src/lib/request-api.ts`
+and the providers' oEmbed endpoints — the client never computes, trusts or fabricates them.
 
 **How a request actually airs** (`src/lib/queue.ts`, driven from `App`): at every playback
 boundary — a sample track ends, a request finishes, or you press `►►` on the pill — the
@@ -122,7 +123,9 @@ unavailable, or cannot be embedded is skipped for the session and the **next hig
 takes its place — three failures in a row end the queue. Provider playlists keep managing
 themselves: the queue only steps in at a real track boundary (a new video title or the end of
 the list), never on a timer. While a request is on air the pill and the engine dock label it
-`Community request` with the request's real title.
+`Community pick` with the request's real title, the pill adds the real vote count when the
+community actually voted, the expanded player explains why it is there (`You helped decide
+what plays next` when this device voted), and its wall card wears the same badge.
 
 Two deliberate escapes from the boundary rule, both gated by `radioIsSilent` — **only ever
 while the radio has never started this session**, where nothing is playing to interrupt and
@@ -134,22 +137,22 @@ rule owns every hand-off as described above.
 
 ## Supabase — the shared community database (wired)
 
-The community layer runs on a production-ready backend in `supabase/`: five
+The community layer runs on a production-ready backend in `supabase/`: seven
 idempotent migrations covering the schema (`categories → stations → songs`,
-plus `suggestions`, `votes`, `station_events`), row-level security with
+plus `suggestions`, `votes`, `song_likes`, `station_events`), row-level security with
 least-privilege grants, indexes, database-side rate limits that mirror the
-UI's rules exactly (3 suggestions / 10 votes per visitor per minute, one row
-per song id forever), and a catalogue seed generated from `src/data/*` by
+UI's rules exactly (3 suggestions / 10 votes / 10 likes per visitor per minute,
+one row per song id forever), and a catalogue seed generated from `src/data/*` by
 `npm run seed:sql`. Design rules: no audio bytes in Postgres — pointers only;
-no stored vote counts — totals come from the token-free
-`suggestion_vote_counts` view; no visitor token ever leaves the database; no
-service-role key anywhere in the repo.
+no stored counts — totals come from the token-free
+`suggestion_vote_counts` and `song_like_counts` views; no visitor token ever
+leaves the database; no service-role key anywhere in the repo.
 
 **How the site picks its backend:** a browser with `VITE_SUPABASE_URL` +
 `VITE_SUPABASE_PUBLISHABLE_KEY` set reads and writes the *shared* database —
-submissions, votes, all four rankings and search — so every visitor on every
-deployment sees the same wall (realtime pushes, a light poll converges vote
-counts, and the success state only appears after the insert landed). Without
+submissions, votes, likes, all four rankings and search — so every visitor on
+every deployment sees the same wall (realtime pushes, a light poll converges
+vote and like counts, and the success state only appears after the insert landed). Without
 those values the same screens run on the local request store: the site keeps
 working fully offline, and tests/CI need no network. Renders (SSR/smoke)
 always stay local — a render never touches a database. Setup for local +
@@ -157,10 +160,10 @@ Vercel (env vars, redeploy) and the two-browser acceptance test:
 [`supabase/README.md`](supabase/README.md) §10. Status mapping, error mapping
 and the security checklist: same file, §§3, 6, 7.
 
-## Admin control room (`/admin`, built)
+## Admin control room (`/admin`)
 
-A private, deliberately unlinked control room lives at `/admin` — no public button, no
-password, no signup:
+A private, unlinked panel (`src/admin/`), reachable only by typing the URL — never linked
+from the public site. What ships:
 
 - **Access gate**: enter an authorized email → Supabase Auth sends a one-time code → the
   *database* decides entry (`is_admin()` over `admin_users`, enforced by RLS — a bypassed
@@ -171,8 +174,8 @@ password, no signup:
   triggers, so a modified client cannot hide what happened.
 - Bootstrap is one SQL statement after the owner's first sign-in (documented in
   [`supabase/README.md`](supabase/README.md) §9). The panel ships in its own lazy chunk —
-  the main bundle never *contains* Supabase code (a configured build fetches it lazily only
-  when `/admin` or the shared wall actually needs it).
+  the main bundle never *contains* Supabase code; the chunk loads only when someone opens
+  `/admin`, and the smoke render proves the SSR path never requests it.
 
 ## Run
 
@@ -191,7 +194,7 @@ npm run dev          # http://localhost:5173
 | `npm run art` | Regenerate `public/art/*.svg` (12 original procedural scenes) |
 | `npm run validate:content` | Content gate: unique IDs, valid categories, flagship per category (exists · marked · two-line title · accent), artwork on disk, safe URL protocols, required fields, no executable markup |
 | `npm run lint:security` | Same gate in `--strict` mode (warnings fail) |
-| `npm test` | Vitest: URL safety, source policy, catalog/search, the request board (dedupe, rate limits, one vote per visitor, ranking rules), the community queue (eligibility, hand-off, retire rules), session backdrop draw, provider metadata resolution, spec invariants, Supabase seed drift + admin-panel security invariants |
+| `npm test` | Vitest: URL safety, source policy, catalog/search, the request board (dedupe, rate limits, one vote + one like per visitor, ranking rules), the community queue (eligibility, hand-off, retire rules), session backdrop draw, provider metadata resolution, spec invariants, Supabase seed drift + admin-panel security invariants |
 | `npm run typecheck` | `tsc -b` |
 | `npm run smoke` | Renders `/`, `/suggest-music` and `/admin` to HTML through Vite SSR and asserts structure, the access gate's honest states, empty states and no fabricated data |
 | `npm run build` | Validate → typecheck → Vite production build into `dist/` |
@@ -359,12 +362,14 @@ Three systems sit on top of the static screen. All three follow the same rules: 
   - `src/lib/request-api.ts` — the community board behind `/suggest-music`: `parseSongUrl`
     accepts **only** a YouTube video or a Spotify track (playlists, albums, channels and
     unknown hosts are refused), duplicates are caught by provider ID (share params are
-    normalised away), submits and votes are rate limited, and voting is **one per visitor per
-    request** — a count only moves when the API confirms it. Ranking (`MOST WANTED` votes
+    normalised away), submits, votes and likes are rate limited, and each gesture is **one per
+    visitor per request** — a count only moves when the API confirms it. Likes (`♡ LIKE`)
+    carry their own honest count, stay open after airplay, and never feed the ranking.
+    Ranking (`MOST WANTED` votes
     with earliest-submission tie-break, `RISING` by last vote, `RECENTLY ADDED`,
     `PLAYED` history) and search live in the API, so the UI can never compute a number.
     V1's local store syncs snapshots across this browser's tabs over a `BroadcastChannel`
-    (each tab's voter bookkeeping stays local); a backend implementing the same interface
+    (each tab's voter/liker bookkeeping stays local); a backend implementing the same interface
     drops in later without touching the components. Track metadata (title, artist, artwork)
     is resolved by `src/lib/track-meta.ts` through each provider's own oEmbed endpoint —
     a refusal renders an honest unavailable state, never invented tags.
@@ -419,9 +424,9 @@ over), the hero stage photo — the page's LCP — carries `fetchpriority="high"
 - `aria-live` announcements on station change, `aria-pressed` on selectors, `aria-label` on
   icon-only buttons, 44px+ touch targets, text + colour for every state, alt text on artwork.
 - The community wall is keyboard-native: its views are a real `role="tablist"` with
-  `aria-selected`, vote buttons carry `aria-pressed`, vote counts announce politely through
-  `aria-live`, the URL field is a labelled single-input form with a status region, and a
-  `?request=` deep link lands focus on the highlighted card.
+  `aria-selected`, vote and like buttons carry `aria-pressed`, vote counts announce politely
+  through `aria-live`, the URL field is a labelled single-input form with a status region, and
+  a `?request=` deep link lands focus on the highlighted card.
 - Progress bars render only when a real duration exists — never simulated.
 - No autoplay without a user gesture; `prefers-reduced-motion` collapses all animation and
   stops the archive drift, which otherwise pauses for hover, wheel, touch, keys and clicks

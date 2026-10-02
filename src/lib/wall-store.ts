@@ -8,9 +8,10 @@ import type { SongProvider } from './request-api';
  * translation layer (queries in, rows out).
  *
  * Rows are always *public* rows: the column grant never includes
- * `visitor_token`, counts arrive as the `votes` aggregate (never as a stored
- * column on `suggestions`), and hidden statuses (pending / rejected) simply
- * do not exist for this role.
+ * `visitor_token`, counts arrive as aggregates (`votes` from
+ * `suggestion_vote_counts` / `wall_board`, `likes` from `song_like_counts` —
+ * never as stored columns on `suggestions`), and hidden statuses
+ * (pending / rejected) simply do not exist for this role.
  */
 
 /** A suggestion exactly as the public column grant returns it, plus counts. */
@@ -29,6 +30,8 @@ export interface WallRow {
   updated_at: string;
   /** Aggregate from `suggestion_vote_counts` / `wall_board` — never stored on the row. */
   votes: number;
+  /** Aggregate from `song_like_counts` — never stored on the row. */
+  likes: number;
   last_voted_at: string | null;
 }
 
@@ -69,6 +72,8 @@ export interface WallStore {
   bySong(provider: SongProvider, providerId: string): Promise<WallRow | null>;
   insertSuggestion(row: NewSuggestion): Promise<WallRow>;
   insertVote(suggestionId: string, visitorToken: string): Promise<void>;
+  /** One like per (request, visitor); 23505 when already liked. */
+  insertLike(suggestionId: string, visitorToken: string): Promise<void>;
   /** Optional live channel (realtime); the poll in the adapter covers counts. */
   subscribeChanges?(onChange: () => void): () => void;
 }

@@ -1,5 +1,6 @@
 import type {
   BoardQuery,
+  LikeFailure,
   RequestApi,
   SongRequest,
   SuggestFailure,
@@ -8,7 +9,7 @@ import type {
   VoteFailure,
 } from './request-api';
 import { MAX_ARTIST, MAX_TITLE, isSafeHttpUrl, parseSongUrl } from './request-api';
-import { hasVoted, markVoted, visitorToken } from './community-identity';
+import { hasLiked, hasVoted, markLiked, markVoted, visitorToken } from './community-identity';
 import { createBrowserWallStore } from './supabase-wall-store';
 import { WallQueryError } from './wall-store';
 import type { WallRow, WallStore } from './wall-store';
@@ -27,11 +28,13 @@ import type { WallRow, WallStore } from './wall-store';
  *    instead of pretending something succeeded.
  */
 
-/** Device-side identity the adapter writes with and reads `mine` from. */
+/** Device-side identity the adapter writes with and reads `mine`/`liked` from. */
 export interface WallIdentity {
   token(): string;
   hasVoted(requestId: string): boolean;
   markVoted(requestId: string): void;
+  hasLiked(requestId: string): boolean;
+  markLiked(requestId: string): void;
 }
 
 export interface SupabaseRequestOptions {
@@ -46,7 +49,13 @@ const BOARD_LIMIT = 60;
 const LIST_LIMIT = 200;
 const DEFAULT_POLL_MS = 20_000;
 
-const browserIdentity: WallIdentity = { token: visitorToken, hasVoted, markVoted };
+const browserIdentity: WallIdentity = {
+  token: visitorToken,
+  hasVoted,
+  markVoted,
+  hasLiked,
+  markLiked,
+};
 
 const toEpoch = (iso: string | null | undefined): number => {
   if (!iso) return 0;
@@ -68,11 +77,13 @@ const toRequest = (row: WallRow): SongRequest | null => {
     artwork: row.artwork_url && isSafeHttpUrl(row.artwork_url) ? row.artwork_url : null,
     status: row.status === 'played' ? 'played' : 'open',
     votes: typeof row.votes === 'number' && row.votes > 0 ? row.votes : 0,
+    likes: typeof row.likes === 'number' && row.likes > 0 ? row.likes : 0,
     createdAt: toEpoch(row.created_at),
     lastVotedAt: toEpoch(row.last_voted_at),
     playedAt: row.played_at ? toEpoch(row.played_at) : null,
     stationId: row.station_id ?? null,
     mine: false, // filled per caller (device memory), see `present`
+    liked: false, // same story as `mine` — the count itself came from the view
   };
 };
 
@@ -90,7 +101,11 @@ const present = (ctx: AdapterContext, row: WallRow): SongRequest | null => {
   const effective = ctx.sessionRows.get(row.id)?.row ?? row;
   const request = toRequest(effective);
   if (!request) return null;
-  return { ...request, mine: ctx.identity.hasVoted(request.id) };
+  return {
+    ...request,
+    mine: ctx.identity.hasVoted(request.id),
+    liked: ctx.identity.hasLiked(request.id),
+  };
 };
 
 /** DB signal → the wall's failure vocabulary (README §6). */
@@ -107,6 +122,15 @@ const voteReason = (error: unknown): VoteFailure | null => {
   if (error.message.startsWith('rate-limited:') || error.code === 'P0001') return 'rate-limited';
   if (error.code === '23505') return 'already-voted'; // votes_one_per_suggestion
   if (error.code === '42501') return 'unavailable'; // RLS: target not open for votes
+  if (error.code === '23503') return 'not-found';
+  return null;
+};
+
+const likeReason = (error: unknown): LikeFailure | null => {
+  if (!(error instanceof WallQueryError)) return null;
+  if (error.message.startsWith('rate-limited:') || error.code === 'P0001') return 'rate-limited';
+  if (error.code === '23505') return 'already-liked'; // song_likes_one_per_suggestion
+  if (error.code === '42501') return 'unavailable'; // RLS: target not visible for likes
   if (error.code === '23503') return 'not-found';
   return null;
 };
@@ -143,6 +167,7 @@ const rowFromRequest = (request: SongRequest): WallRow => {
     created_at: iso,
     updated_at: iso,
     votes: request.votes,
+    likes: request.likes,
     last_voted_at: request.lastVotedAt ? toIso(request.lastVotedAt) : null,
   };
 };
@@ -289,6 +314,25 @@ export function createSupabaseRequestApi(
       const row = await store.byId(id);
       const request = row ? present(ctx, row) : null;
       if (!request) throw new WallQueryError(null, 'voted request could not be reloaded');
+      return { ok: true, request };
+    },
+
+    async like(id) {
+      if (ctx.sessionRows.has(id)) return { ok: false, reason: 'unavailable' };
+      try {
+        await store.insertLike(id, identity.token());
+      } catch (error) {
+        const reason = likeReason(error);
+        // The database knows this device liked it — remember that locally too.
+        if (reason === 'already-liked') identity.markLiked(id);
+        if (reason) return { ok: false, reason };
+        throw error;
+      }
+      identity.markLiked(id);
+      notify();
+      const row = await store.byId(id);
+      const request = row ? present(ctx, row) : null;
+      if (!request) throw new WallQueryError(null, 'liked request could not be reloaded');
       return { ok: true, request };
     },
 

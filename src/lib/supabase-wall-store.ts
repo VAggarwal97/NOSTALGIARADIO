@@ -43,31 +43,59 @@ interface CountRow {
   votes: number;
 }
 
-/** Fill in the honest aggregate for rows that didn't come from `wall_board`. */
+interface LikeCountRow {
+  suggestion_id: string;
+  likes: number;
+}
+
+/** Fill in the honest aggregates for rows that didn't come from `wall_board`. */
 const withCounts = async (
   client: SupabaseClient,
-  rows: Array<Omit<WallRow, 'votes' | 'last_voted_at'>>,
+  rows: Array<Omit<WallRow, 'votes' | 'likes' | 'last_voted_at'>>,
+): Promise<WallRow[]> => {
+  if (rows.length === 0) return [];
+  const ids = rows.map((row) => row.id);
+  const [votesResult, likesResult] = await Promise.all([
+    client.from('suggestion_vote_counts').select('suggestion_id, votes').in('suggestion_id', ids),
+    client.from('song_like_counts').select('suggestion_id, likes').in('suggestion_id', ids),
+  ]);
+  if (votesResult.error) throwPg(votesResult.error);
+  if (likesResult.error) throwPg(likesResult.error);
+  const votes = new Map<string, number>(
+    ((votesResult.data ?? []) as CountRow[]).map((row) => [row.suggestion_id, row.votes]),
+  );
+  const likes = new Map<string, number>(
+    ((likesResult.data ?? []) as LikeCountRow[]).map((row) => [row.suggestion_id, row.likes]),
+  );
+  return rows.map((row) => ({
+    ...row,
+    votes: votes.get(row.id) ?? 0,
+    likes: likes.get(row.id) ?? 0,
+    last_voted_at: null, // only wall_board computes it (server-side ordering)
+  }));
+};
+
+/** Like counts only — `wall_board` already carries votes and last_voted_at. */
+const withLikes = async (
+  client: SupabaseClient,
+  rows: Array<Omit<WallRow, 'likes'>>,
 ): Promise<WallRow[]> => {
   if (rows.length === 0) return [];
   const { data, error } = await client
-    .from('suggestion_vote_counts')
-    .select('suggestion_id, votes')
+    .from('song_like_counts')
+    .select('suggestion_id, likes')
     .in(
       'suggestion_id',
       rows.map((row) => row.id),
     );
   if (error) throwPg(error);
-  const counts = new Map<string, number>(
-    ((data ?? []) as CountRow[]).map((row) => [row.suggestion_id, row.votes]),
+  const likes = new Map<string, number>(
+    ((data ?? []) as LikeCountRow[]).map((row) => [row.suggestion_id, row.likes]),
   );
-  return rows.map((row) => ({
-    ...row,
-    votes: counts.get(row.id) ?? 0,
-    last_voted_at: null, // only wall_board computes it (server-side ordering)
-  }));
+  return rows.map((row) => ({ ...row, likes: likes.get(row.id) ?? 0 }));
 };
 
-const isPubRow = (value: unknown): value is Omit<WallRow, 'votes' | 'last_voted_at'> => {
+const isPubRow = (value: unknown): value is Omit<WallRow, 'votes' | 'likes' | 'last_voted_at'> => {
   if (!value || typeof value !== 'object') return false;
   const row = value as Record<string, unknown>;
   return (
@@ -116,7 +144,9 @@ export function createSupabaseWallStore(client: SupabaseClient): WallStore {
       });
       if (error) throwPg(error);
       const payload: unknown = data;
-      return (Array.isArray(payload) ? payload : []) as WallRow[];
+      // wall_board already carries votes and last_voted_at; only likes join here.
+      const rows = (Array.isArray(payload) ? payload : []) as Array<Omit<WallRow, 'likes'>>;
+      return withLikes(client, rows);
     },
 
     async list(limit) {
@@ -171,12 +201,19 @@ export function createSupabaseWallStore(client: SupabaseClient): WallStore {
         // exists, the wall just may not show it. Report honestly upstream.
         return fail(null, 'submitted request is not publicly visible');
       }
-      return { ...payload, votes: 0, last_voted_at: null };
+      return { ...payload, votes: 0, likes: 0, last_voted_at: null };
     },
 
     async insertVote(suggestionId, token) {
       const { error } = await client
         .from('votes')
+        .insert({ suggestion_id: suggestionId, visitor_token: token });
+      if (error) throwPg(error);
+    },
+
+    async insertLike(suggestionId, token) {
+      const { error } = await client
+        .from('song_likes')
         .insert({ suggestion_id: suggestionId, visitor_token: token });
       if (error) throwPg(error);
     },

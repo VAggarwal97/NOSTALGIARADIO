@@ -49,6 +49,8 @@ export interface SongRequest {
   status: RequestStatus;
   /** Honest aggregate: 0 until somebody actually votes. */
   votes: number;
+  /** Honest aggregate: 0 until somebody actually likes — never a rank. */
+  likes: number;
   createdAt: number;
   /** Last time any visitor voted — the raw material of "rising". 0 = never. */
   lastVotedAt: number;
@@ -56,6 +58,8 @@ export interface SongRequest {
   stationId: string | null;
   /** True when this session's visitor id is among the voters. */
   mine: boolean;
+  /** True when this session's visitor id is among the likers. */
+  liked: boolean;
 }
 
 export type RequestTab = 'wanted' | 'rising' | 'recent' | 'played';
@@ -75,6 +79,10 @@ export type VoteFailure = 'not-found' | 'already-voted' | 'unavailable' | 'rate-
 
 export type VoteResult = { ok: true; request: SongRequest } | { ok: false; reason: VoteFailure };
 
+export type LikeFailure = 'not-found' | 'already-liked' | 'unavailable' | 'rate-limited';
+
+export type LikeResult = { ok: true; request: SongRequest } | { ok: false; reason: LikeFailure };
+
 export interface RequestApi {
   submit(input: { url: string; meta: TrackMeta; stationId: string | null }): Promise<SuggestResult>;
   /** Newest first — everything on the board, any status. */
@@ -87,6 +95,8 @@ export interface RequestApi {
   get(id: string): Promise<SongRequest | null>;
   /** One vote per visitor per request — the server's job in a real backend. */
   vote(id: string): Promise<VoteResult>;
+  /** One like per visitor per request: affection, never a queue rank. */
+  like(id: string): Promise<LikeResult>;
   /**
    * Backend hook: the radio marks a request played, moving it into history.
    * V1's local store exposes it (the wall's Played tab reads from it); a real
@@ -172,6 +182,8 @@ export function parseSongUrl(raw: string): SongRef | null {
 const RATE_WINDOW_MS = 60_000;
 const MAX_SUBMITS_PER_WINDOW = 3;
 const MAX_VOTES_PER_WINDOW = 10;
+/** Same weight as a vote: likes are frequent but never spammy. */
+const MAX_LIKES_PER_WINDOW = 10;
 /** Oversized paste protection — nothing long ever reaches the board. */
 export const MAX_TITLE = 160;
 export const MAX_ARTIST = 120;
@@ -188,9 +200,11 @@ export const isSafeHttpUrl = (value: string): boolean => {
  * Local-store internals: one request row plus this tab's private voter bookkeeping.
  * Not an API surface — a real backend keeps voter ids in its own votes table.
  */
-export interface StoredRequest extends Omit<SongRequest, 'mine'> {
+export interface StoredRequest extends Omit<SongRequest, 'mine' | 'liked'> {
   /** Local-only: which visitor ids voted from THIS tab. Never leaves it. */
   voters: Set<string>;
+  /** Local-only: which visitor ids liked from THIS tab. Never leaves it. */
+  likers: Set<string>;
 }
 
 /**
@@ -207,8 +221,8 @@ export function createRequestStore(): RequestStore {
   return { rows: new Map(), bySong: new Map() };
 }
 
-/** What a neighbouring tab may see — counts and copy, never a voter id. */
-type Snapshot = Omit<SongRequest, 'mine'>;
+/** What a neighbouring tab may see — counts and copy, never a voter/liker id. */
+type Snapshot = Omit<SongRequest, 'mine' | 'liked'>;
 
 type ChannelMessage = { type: 'hello' } | { type: 'snapshot'; items: Snapshot[] };
 
@@ -221,6 +235,7 @@ const isSnapshotItem = (value: unknown): value is Snapshot => {
     typeof item.id === 'string' &&
     typeof item.title === 'string' &&
     typeof item.votes === 'number' &&
+    typeof item.likes === 'number' &&
     !!item.song &&
     typeof item.song === 'object'
   );
@@ -252,6 +267,7 @@ export function createLocalRequestApi(
   const { rows, bySong } = store;
   const submittedAt: number[] = [];
   const votedAt: number[] = [];
+  const likedAt: number[] = [];
   const listeners = new Set<() => void>();
 
   // Same browser, different tabs: adopt neighbouring snapshots so votes and
@@ -265,7 +281,7 @@ export function createLocalRequestApi(
   (channel as unknown as { unref?: () => void } | null)?.unref?.();
 
   const snapshots = (): Snapshot[] =>
-    [...rows.values()].map(({ voters: _voters, ...rest }) => rest);
+    [...rows.values()].map(({ voters: _voters, likers: _likers, ...rest }) => rest);
 
   const notify = () => {
     for (const listener of listeners) listener();
@@ -281,8 +297,12 @@ export function createLocalRequestApi(
     for (const item of items) {
       if (!isSnapshotItem(item)) continue;
       const local = rows.get(item.id);
-      // Keep this tab's own voter bookkeeping; take the shared counts/copy.
-      const stored: StoredRequest = { ...item, voters: local?.voters ?? new Set() };
+      // Keep this tab's own voter/liker bookkeeping; take the shared counts.
+      const stored: StoredRequest = {
+        ...item,
+        voters: local?.voters ?? new Set(),
+        likers: local?.likers ?? new Set(),
+      };
       rows.set(item.id, stored);
       bySong.set(songKey(item.song), stored);
       changed = true;
@@ -299,8 +319,8 @@ export function createLocalRequestApi(
   });
 
   const present = (stored: StoredRequest): SongRequest => {
-    const { voters, ...rest } = stored;
-    return { ...rest, mine: voters.has(visitorId) };
+    const { voters, likers, ...rest } = stored;
+    return { ...rest, mine: voters.has(visitorId), liked: likers.has(visitorId) };
   };
 
   const windowOk = (times: number[], max: number, at: number): boolean => {
@@ -332,11 +352,13 @@ export function createLocalRequestApi(
         artwork: meta.artwork && isSafeHttpUrl(meta.artwork) ? meta.artwork : null,
         status: 'open',
         votes: 0,
+        likes: 0,
         createdAt: at,
         lastVotedAt: 0,
         playedAt: null,
         stationId,
         voters: new Set(),
+        likers: new Set(),
       };
       rows.set(stored.id, stored);
       bySong.set(songKey(song), stored);
@@ -397,6 +419,28 @@ export function createLocalRequestApi(
       stored.votes += 1;
       stored.lastVotedAt = at;
       votedAt.push(at);
+      share();
+      return { ok: true, request: present(stored) };
+    },
+
+    async like(id) {
+      const stored = rows.get(id);
+      if (!stored) return { ok: false, reason: 'not-found' };
+      // Unlike votes (a ranking gesture), likes stay open on played history —
+      // the same visibility rule as the `song_likes` policy in migration 7.
+      if (stored.status !== 'open' && stored.status !== 'played') {
+        return { ok: false, reason: 'unavailable' };
+      }
+      if (stored.likers.has(visitorId)) return { ok: false, reason: 'already-liked' };
+
+      const at = now();
+      if (!windowOk(likedAt, MAX_LIKES_PER_WINDOW, at)) {
+        return { ok: false, reason: 'rate-limited' };
+      }
+
+      stored.likers.add(visitorId);
+      stored.likes += 1;
+      likedAt.push(at);
       share();
       return { ok: true, request: present(stored) };
     },
@@ -491,6 +535,7 @@ export function createDeferredRequestApi(load: () => Promise<RequestApi>): Reque
     find: (url) => get().then((api) => api.find(url)),
     get: (id) => get().then((api) => api.get(id)),
     vote: (id) => get().then((api) => api.vote(id)),
+    like: (id) => get().then((api) => api.like(id)),
     markPlayed: (id, played) => get().then((api) => api.markPlayed(id, played)),
     subscribe(listener) {
       listeners.add(listener);

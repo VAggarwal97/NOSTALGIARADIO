@@ -601,6 +601,17 @@
   color: var(--accent-text);
 }
 
+/* Community Pick — the on-air card says the community put it there. */
+.leader-pick,
+.request-pick {
+  margin: 8px 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+
 .leader-title {
   margin: 12px 0 0;
   font-family: var(--font-display);
@@ -634,6 +645,15 @@
   color: var(--accent-text);
 }
 
+.leader-likes {
+  margin: 6px 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+
 .leader-actions,
 .request-actions {
   display: flex;
@@ -643,7 +663,7 @@
   margin-top: 16px;
 }
 
-/* ── Vote + share: obvious, borderless-quiet ──────────────────────────── */
+/* ── Vote + like + share: obvious, borderless-quiet ───────────────────── */
 
 .vote-btn {
   min-height: 44px;
@@ -675,6 +695,40 @@
 }
 
 .vote-btn:disabled {
+  opacity: 0.75;
+}
+
+/* The heart mirrors the vote button — one visual language for both gestures. */
+.like-btn {
+  min-height: 44px;
+  padding: 0 22px;
+  border: 1px solid rgba(245, 238, 225, 0.26);
+  border-radius: 12px;
+  background: none;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ivory);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+
+.like-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.like-btn[data-liked='true'] {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent-text);
+  cursor: default;
+}
+
+.like-btn:disabled {
   opacity: 0.75;
 }
 
@@ -832,6 +886,14 @@
   font-size: 0.75rem;
   letter-spacing: 0.1em;
   color: var(--accent-text);
+}
+
+.request-likes {
+  margin: 3px 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  color: rgba(245, 238, 225, 0.55);
 }
 
 .request-actions {

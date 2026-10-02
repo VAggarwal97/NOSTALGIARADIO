@@ -152,6 +152,57 @@ describe('request board — voting', () => {
   });
 });
 
+describe('request board — liking', () => {
+  it('starts at zero, counts once per visitor, and never touches the ranking', async () => {
+    let now = 1_000;
+    // One store ("the server"), two visitors — uniqueness is enforced there.
+    const store = createRequestStore();
+    const api = createLocalRequestApi(() => now, 'liker-a', store);
+    const other = createLocalRequestApi(() => now, 'liker-b', store);
+
+    const request = await seed(api, yt('dQw4w9WgXcQ'), 'Never Gonna Give You Up');
+    expect(request?.likes).toBe(0);
+    expect(request?.liked).toBe(false);
+
+    now = 2_000;
+    const first = await api.like(request!.id);
+    expect(first.ok).toBe(true);
+    if (first.ok) {
+      expect(first.request.likes).toBe(1);
+      expect(first.request.liked).toBe(true);
+    }
+
+    // Double-click protection: the second attempt never inflates the count.
+    now = 2_100;
+    expect(await api.like(request!.id)).toEqual({ ok: false, reason: 'already-liked' });
+    expect((await api.get(request!.id))?.likes).toBe(1);
+
+    // A different visitor gets exactly one more.
+    now = 2_200;
+    const secondVisitor = await other.like(request!.id);
+    expect(secondVisitor.ok).toBe(true);
+    if (secondVisitor.ok) expect(secondVisitor.request.likes).toBe(2);
+    expect((await api.get(request!.id))?.likes).toBe(2);
+
+    // A like is affection, not a ranking: RISING still needs a vote.
+    expect(await api.board({ tab: 'rising' })).toEqual([]);
+    expect((await api.get(request!.id))?.lastVotedAt).toBe(0);
+  });
+
+  it('stays likable after airplay but refuses what cannot be liked', async () => {
+    let now = 1_000;
+    const api = createLocalRequestApi(() => now, 'liker');
+    expect(await api.like('nope')).toEqual({ ok: false, reason: 'not-found' });
+
+    const request = await seed(api, yt('dQw4w9WgXcQ'), 'A Song');
+    now = 2_000;
+    await api.markPlayed(request!.id);
+    const afterAir = await api.like(request!.id);
+    expect(afterAir.ok).toBe(true); // played history keeps its affection
+    if (afterAir.ok) expect(afterAir.request.likes).toBe(1);
+  });
+});
+
 describe('request board — ranking rules', () => {
   it('MOST WANTED sorts by votes, ties resolving to the earlier submission', async () => {
     let now = 1_000;

@@ -28,6 +28,10 @@ interface FloatingPlayerProps {
   trackTitle?: string | null;
   /** What is on air right now when it is not the station itself (a community request). */
   contextLabel?: string | null;
+  /** Honest vote aggregate behind the request — null while nobody has voted. */
+  contextVotes?: number | null;
+  /** This device voted for what is on air — the expanded player can say so. */
+  contextHelped?: boolean;
   /** False when the provider exposes no volume API — the control is hidden, not faked. */
   hasVolume?: boolean;
   expanded: boolean;
@@ -79,6 +83,8 @@ export function FloatingPlayer({
   provider = null,
   trackTitle = null,
   contextLabel = null,
+  contextVotes = null,
+  contextHelped = false,
   hasVolume = true,
   expanded,
   minimized,
@@ -113,8 +119,10 @@ export function FloatingPlayer({
   const title = trackTitle ?? station?.nowPlaying?.title ?? station?.name ?? 'No station selected';
   const subParts = [stateCopy[state]];
   const hasTrackName = Boolean(trackTitle ?? station?.nowPlaying);
-  if (contextLabel) subParts.push(contextLabel);
-  else if (hasTrackName && station) subParts.push(station.name);
+  if (contextLabel) {
+    subParts.push(contextLabel);
+    if (contextVotes) subParts.push(`${contextVotes} requested`);
+  } else if (hasTrackName && station) subParts.push(station.name);
   else if (station?.demo) subParts.push('Sample audio');
   else if (station && !providerLabel) subParts.push('Live source');
   if (providerLabel) subParts.push(providerLabel);
@@ -280,6 +288,20 @@ export function FloatingPlayer({
             </div>
           )}
         </div>
+
+        {expanded && contextLabel ? (
+          <div className="player-pick">
+            <p className="player-pick-tag">{contextLabel}</p>
+            <p className="player-pick-line">
+              {contextVotes
+                ? `${contextVotes} people asked for this song.`
+                : 'Chosen from the community queue.'}
+            </p>
+            {contextHelped ? (
+              <p className="player-pick-helped">You helped decide what plays next.</p>
+            ) : null}
+          </div>
+        ) : null}
 
         {queueOpen ? (
           <div className="queue-pop" role="group" aria-label="Queue">

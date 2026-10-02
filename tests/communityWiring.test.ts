@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { hasVoted, markVoted, visitorToken } from '../src/lib/community-identity';
+import { hasLiked, hasVoted, markLiked, markVoted, visitorToken } from '../src/lib/community-identity';
 import {
   createDeferredRequestApi,
   createLocalRequestApi,
@@ -34,6 +34,7 @@ const read = (relative: string): string =>
 
 const wiring = read('../supabase/migrations/20260930000005_public_wiring.sql');
 const rateLimits = read('../supabase/migrations/20260930000006_definer_rate_limits.sql');
+const songLikes = read('../supabase/migrations/20261002000007_song_likes.sql');
 
 const yt = (id: string): string => `https://www.youtube.com/watch?v=${id}`;
 const ytId = (index: number): string => `${String(index).padStart(2, '0')}${'a'.repeat(9)}`;
@@ -48,12 +49,20 @@ const iso = (at: number): string => new Date(at).toISOString();
 
 /* ── The store seam: an in-memory double that enforces the same rules ────── */
 
-type FaultKey = 'board' | 'list' | 'byId' | 'bySong' | 'insertSuggestion' | 'insertVote';
+type FaultKey =
+  | 'board'
+  | 'list'
+  | 'byId'
+  | 'bySong'
+  | 'insertSuggestion'
+  | 'insertVote'
+  | 'insertLike';
 
 interface FakeWall {
   store: WallStore;
   rows: Map<string, WallRow>;
   ballots: Array<{ suggestion_id: string; visitor_token: string; at: number }>;
+  hearts: Array<{ suggestion_id: string; visitor_token: string; at: number }>;
   submitted: NewSuggestion[];
   fault: Partial<Record<FaultKey, Error>>;
 }
@@ -74,12 +83,14 @@ const makeRow = (
   created_at: spec.created_at ?? iso(1_000_000),
   updated_at: spec.updated_at ?? spec.created_at ?? iso(1_000_000),
   votes: 0, // never stored — recomputed on every read, like the real view
+  likes: 0, // same story as votes: counted from `hearts`, never stored
   last_voted_at: null,
 });
 
 const createFakeWall = (now: () => number): FakeWall => {
   const rows = new Map<string, WallRow>();
   const ballots: FakeWall['ballots'] = [];
+  const hearts: FakeWall['hearts'] = [];
   const submitted: NewSuggestion[] = [];
   const fault: FakeWall['fault'] = {};
 
@@ -91,17 +102,19 @@ const createFakeWall = (now: () => number): FakeWall => {
     }
   };
 
-  const counts = (id: string): { votes: number; last: string | null } => {
+  const counts = (id: string): { votes: number; likes: number; last: string | null } => {
     const mine = ballots.filter((ballot) => ballot.suggestion_id === id);
+    const liked = hearts.filter((heart) => heart.suggestion_id === id);
     return {
       votes: mine.length,
+      likes: liked.length,
       last: mine.length > 0 ? iso(Math.max(...mine.map((ballot) => ballot.at))) : null,
     };
   };
 
   const merged = (row: WallRow): WallRow => {
-    const { votes, last } = counts(row.id);
-    return { ...row, votes, last_voted_at: last };
+    const { votes, likes, last } = counts(row.id);
+    return { ...row, votes, likes, last_voted_at: last };
   };
 
   const visible = (row: WallRow): boolean => row.status === 'approved' || row.status === 'played';
@@ -191,7 +204,7 @@ const createFakeWall = (now: () => number): FakeWall => {
       });
       rows.set(row.id, row);
       submitted.push(payload);
-      return { ...row, votes: 0, last_voted_at: null };
+      return { ...row, votes: 0, likes: 0, last_voted_at: null };
     },
 
     async insertVote(suggestionId, token) {
@@ -211,20 +224,46 @@ const createFakeWall = (now: () => number): FakeWall => {
       }
       ballots.push({ suggestion_id: suggestionId, visitor_token: token, at: now() });
     },
+
+    async insertLike(suggestionId, token) {
+      take('insertLike');
+      const row = rows.get(suggestionId);
+      if (!row || (row.status !== 'approved' && row.status !== 'played')) {
+        throw new WallQueryError(
+          '42501',
+          'new row violates row-level security policy for table "song_likes"',
+        );
+      }
+      if (hearts.some((h) => h.suggestion_id === suggestionId && h.visitor_token === token)) {
+        throw new WallQueryError(
+          '23505',
+          'duplicate key value violates unique constraint "song_likes_one_per_suggestion"',
+        );
+      }
+      hearts.push({ suggestion_id: suggestionId, visitor_token: token, at: now() });
+    },
   };
 
-  return { store, rows, ballots, submitted, fault };
+  return { store, rows, ballots, hearts, submitted, fault };
 };
 
-const makeIdentity = (token: string): WallIdentity & { voted: Set<string> } => {
+const makeIdentity = (
+  token: string,
+): WallIdentity & { voted: Set<string>; liked: Set<string> } => {
   const voted = new Set<string>();
+  const liked = new Set<string>();
   return {
     token: () => token,
     hasVoted: (id) => voted.has(id),
     markVoted: (id) => {
       voted.add(id);
     },
+    hasLiked: (id) => liked.has(id),
+    markLiked: (id) => {
+      liked.add(id);
+    },
     voted,
+    liked,
   };
 };
 
@@ -304,7 +343,7 @@ describe('backend selection — local unless a configured browser asks', () => {
 /* ── Device identity ─────────────────────────────────────────────────────── */
 
 describe('device identity — token writes, memory keeps `mine`', () => {
-  it('keeps one stable token and a local voted list without storage', () => {
+  it('keeps one stable token and local voted/liked lists without storage', () => {
     const token = visitorToken();
     expect(token.length).toBeGreaterThan(0);
     expect(visitorToken()).toBe(token);
@@ -312,6 +351,12 @@ describe('device identity — token writes, memory keeps `mine`', () => {
     markVoted('req-memory');
     expect(hasVoted('req-memory')).toBe(true);
     expect(hasVoted('req-never')).toBe(false);
+
+    // The liked list is separate device memory — voting never implies liking.
+    markLiked('req-memory');
+    expect(hasLiked('req-memory')).toBe(true);
+    expect(hasVoted('req-other')).toBe(false);
+    expect(hasLiked('req-other')).toBe(false);
   });
 
   it('persists both to storage when available and survives corrupted data', () => {
@@ -512,6 +557,88 @@ describe('supabase request api — the V1 contract over a store', () => {
     db.fault.insertVote = new Error('network down');
     await expect(api.vote(request!.id)).rejects.toThrow('network down');
     expect(db.ballots).toHaveLength(0); // no refusal was ever mistaken for a vote
+  });
+
+  it('counts likes in the store — once per device, played rows stay likable', async () => {
+    let clock = 1_000_000;
+    const now = () => clock;
+    const db = createFakeWall(now);
+    const first = createSupabaseRequestApi(db.store, {
+      identity: makeIdentity('visitor-a'),
+      pollMs: 0,
+      now,
+    });
+    const second = createSupabaseRequestApi(db.store, {
+      identity: makeIdentity('visitor-b'),
+      pollMs: 0,
+      now,
+    });
+
+    const request = await (async () => {
+      const result = await first.submit({
+        url: yt(ytId(0)),
+        meta: meta('Never Gonna Give You Up'),
+        stationId: null,
+      });
+      expect(result.ok).toBe(true);
+      return result.ok ? result.request : null;
+    })();
+    expect(request?.likes).toBe(0);
+    expect(request?.liked).toBe(false);
+
+    clock = 2_000;
+    const like = await first.like(request!.id);
+    expect(like.ok).toBe(true);
+    if (like.ok) {
+      expect(like.request.likes).toBe(1);
+      expect(like.request.liked).toBe(true);
+    }
+    expect(await first.like(request!.id)).toEqual({ ok: false, reason: 'already-liked' });
+    expect(db.hearts).toHaveLength(1); // the retry never inflated anything
+
+    clock = 2_200;
+    const fromOther = await second.like(request!.id);
+    expect(fromOther.ok).toBe(true);
+    if (fromOther.ok) expect(fromOther.request.likes).toBe(2);
+    expect((await first.get(request!.id))?.likes).toBe(2);
+    expect((await second.get(request!.id))?.liked).toBe(true);
+
+    // The store retires the request to history: likes stay open where votes
+    // close (migration 7's policy covers approved + played, votes only approved).
+    const retired = db.rows.get(request!.id);
+    expect(retired).toBeDefined();
+    retired!.status = 'played';
+
+    const third = createSupabaseRequestApi(db.store, {
+      identity: makeIdentity('visitor-c'),
+      pollMs: 0,
+      now,
+    });
+    const afterAir = await third.like(request!.id);
+    expect(afterAir.ok).toBe(true);
+    if (afterAir.ok) expect(afterAir.request.likes).toBe(3);
+    expect(await third.vote(request!.id)).toEqual({ ok: false, reason: 'unavailable' });
+  });
+
+  it('maps every like refusal to an honest reason', async () => {
+    const { api, db } = setup();
+    const request = await seed(api, 0, 'Alpha');
+
+    db.fault.insertLike = new WallQueryError(
+      '42501',
+      'new row violates row-level security policy for table "song_likes"',
+    );
+    expect(await api.like(request!.id)).toEqual({ ok: false, reason: 'unavailable' });
+
+    db.fault.insertLike = new WallQueryError('23503', 'violates foreign key constraint');
+    expect(await api.like(request!.id)).toEqual({ ok: false, reason: 'not-found' });
+
+    db.fault.insertLike = new WallQueryError('P0001', 'rate-limited: at most 10 likes per minute');
+    expect(await api.like(request!.id)).toEqual({ ok: false, reason: 'rate-limited' });
+
+    db.fault.insertLike = new Error('network down');
+    await expect(api.like(request!.id)).rejects.toThrow('network down');
+    expect(db.hearts).toHaveLength(0); // no refusal was ever mistaken for a like
   });
 
   it('rankings come from the store, mirroring the local rules', async () => {
@@ -766,5 +893,38 @@ describe('rate-limit migration — counters run as definer, tokens stay hidden',
       .join('\n');
     expect(executable).not.toMatch(/\bgrant\b/i); // a fix, not a grant widening
     expect(executable).not.toMatch(/alter\s+default\s+privileges/i);
+  });
+});
+
+/* ── Song likes: a second gesture with the same token hygiene ────────────── */
+
+describe('likes migration — insert-only browser, counted view, definer counter', () => {
+  const body = songLikes
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('--'))
+    .join('\n');
+
+  it('gives anon INSERT only: row select stays revoked, the view carries counts', () => {
+    expect(body).toMatch(/revoke select[^;]*on public\.song_likes/i);
+    expect(body).toMatch(/grant insert on public\.song_likes to anon/i);
+    expect(body).toMatch(/grant select on public\.song_like_counts to anon/i);
+    // no surprise verbs for the browser on the token-bearing table
+    expect(body).not.toMatch(/grant (update|delete)[^;]*on public\.song_likes/i);
+  });
+
+  it('counts likes through the view — never a stored column on suggestions', () => {
+    expect(songLikes).toMatch(/create view public\.song_like_counts as/);
+    expect(songLikes).toContain('group by suggestion_id');
+    expect(songLikes).not.toMatch(/alter table public\.suggestions add/); // counts never land on rows
+  });
+
+  it('is born definer with a pinned search_path and one-like-per-visitor uniqueness', () => {
+    const fn = songLikes.match(/function public\.enforce_like_rate\(\)[\s\S]*?\n\$\$;/)?.[0] ?? '';
+    expect(fn.length).toBeGreaterThan(0);
+    expect(fn).toContain('security definer');
+    expect(fn).toContain('set search_path = public, pg_temp');
+    expect(fn).toContain("errcode = 'P0001'"); // the mapped rate-limit signal
+    expect(songLikes).toContain('song_likes_one_per_suggestion');
+    expect(songLikes).toContain('enable row level security');
   });
 });

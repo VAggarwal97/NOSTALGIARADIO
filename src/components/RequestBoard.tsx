@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getRequestApi } from '../lib/request-api';
 import type { RequestTab, SongRequest } from '../lib/request-api';
+import { COMMUNITY_PICK } from '../lib/community-pick';
 
 interface RequestBoardProps {
   /** Deep-linked or just-submitted request: scroll to it, flash it. */
@@ -71,6 +72,7 @@ export function RequestBoard({
   const [load, setLoad] = useState<Load>(null);
   const [failed, setFailed] = useState(false);
   const [pendingVote, setPendingVote] = useState<string | null>(null);
+  const [pendingLike, setPendingLike] = useState<string | null>(null);
   const [voteNote, setVoteNote] = useState<{ id: string; text: string } | null>(null);
   const [flashId, setFlashId] = useState<string | null>(null);
   const [nowLeading, setNowLeading] = useState(false);
@@ -82,15 +84,23 @@ export function RequestBoard({
   const api = getRequestApi();
 
   /**
-   * What makes a board state worth re-rendering: identity, count, status,
-   * "mine" and history. The convergence poll re-fetches every cycle; only a
-   * real difference may move state (otherwise deep-linked spotlights would
-   * re-flash every 20 seconds).
+   * What makes a board state worth re-rendering: identity, counts, status,
+   * "mine"/"liked" and history. The convergence poll re-fetches every cycle;
+   * only a real difference may move state (otherwise deep-linked spotlights
+   * would re-flash every 20 seconds).
    */
   const fingerprintOf = (items: SongRequest[], total: number): string =>
     JSON.stringify([
       total,
-      items.map((item) => [item.id, item.votes, item.status, item.mine, item.playedAt ?? 0]),
+      items.map((item) => [
+        item.id,
+        item.votes,
+        item.likes,
+        item.status,
+        item.mine,
+        item.liked,
+        item.playedAt ?? 0,
+      ]),
     ]);
   const loadFingerprint = useRef<string | null>(null);
   const hasData = useRef(false);
@@ -211,6 +221,35 @@ export function RequestBoard({
     [api, pendingVote, onMaybeAir],
   );
 
+  // A like is affection, never a queue move: no leading-candidate, no air
+  // suggestion — the count only moves when the API confirms it.
+  const like = useCallback(
+    (request: SongRequest) => {
+      if (pendingLike) return;
+      setPendingLike(request.id);
+      setVoteNote(null);
+      void api
+        .like(request.id)
+        .then((result) => {
+          setPendingLike(null);
+          if (!result.ok) {
+            if (result.reason === 'already-liked') {
+              setVoteNote({ id: request.id, text: 'You have already liked this' });
+            } else if (result.reason === 'rate-limited') {
+              setVoteNote({ id: request.id, text: 'Too many likes — wait a moment' });
+            } else {
+              setVoteNote({ id: request.id, text: 'Like could not be confirmed' });
+            }
+          }
+        })
+        .catch(() => {
+          setPendingLike(null);
+          setVoteNote({ id: request.id, text: 'Like could not be confirmed' });
+        });
+    },
+    [api, pendingLike],
+  );
+
   const items = load?.items ?? null;
   const total = load?.total ?? 0;
   const featured = items && items.length > 0 ? items[0] : null;
@@ -327,6 +366,17 @@ export function RequestBoard({
                 <span aria-hidden="true">▲</span> {formatVotes(featured.votes)}{' '}
                 {featured.votes === 1 ? 'vote' : 'votes'}
               </p>
+              <p className="leader-likes">
+                <span aria-hidden="true">♥</span> {formatVotes(featured.likes)}{' '}
+                {featured.likes === 1 ? 'like' : 'likes'}
+                {featured.liked ? ' · including yours' : ''}
+              </p>
+              {activeRequestId === featured.id ? (
+                <p className="leader-pick">
+                  {COMMUNITY_PICK}
+                  {featured.mine ? ' — you helped decide this' : ''}
+                </p>
+              ) : null}
               <div className="leader-actions">
                 {featured.status === 'open' ? (
                   <PlayButton
@@ -339,6 +389,11 @@ export function RequestBoard({
                   request={featured}
                   pending={pendingVote === featured.id}
                   onVote={vote}
+                />
+                <LikeButton
+                  request={featured}
+                  pending={pendingLike === featured.id}
+                  onLike={like}
                 />
                 <button type="button" className="share-btn" onClick={() => onShare(featured)}>
                   Share <span aria-hidden="true">↗</span>
@@ -379,6 +434,16 @@ export function RequestBoard({
                     >
                       <span aria-hidden="true">▲</span> {formatVotes(request.votes)}
                     </p>
+                    <p className="request-likes">
+                      <span aria-hidden="true">♥</span> {formatVotes(request.likes)}
+                      {request.liked ? ' · yours' : ''}
+                    </p>
+                    {activeRequestId === request.id ? (
+                      <p className="request-pick">
+                        {COMMUNITY_PICK}
+                        {request.mine ? ' — you helped decide this' : ''}
+                      </p>
+                    ) : null}
                     <div className="request-actions">
                       {request.status === 'open' ? (
                         <PlayButton
@@ -388,6 +453,11 @@ export function RequestBoard({
                         />
                       ) : null}
                       <VoteButton request={request} pending={pendingVote === request.id} onVote={vote} />
+                      <LikeButton
+                        request={request}
+                        pending={pendingLike === request.id}
+                        onLike={like}
+                      />
                       <button
                         type="button"
                         className="share-btn share-btn--quiet"
@@ -468,6 +538,35 @@ function VoteButton({
       <span aria-hidden="true">▲</span> {voted ? 'Voted' : pending ? 'Voting…' : 'Vote'}
       <span className="visually-hidden">
         {voted ? ` — you voted, ${request.votes} total` : ` for ${request.title}`}
+      </span>
+    </button>
+  );
+}
+
+/** ♡ Like — affection, never a rank: the heart fills only after the API confirms. */
+function LikeButton({
+  request,
+  pending,
+  onLike,
+}: {
+  request: SongRequest;
+  pending: boolean;
+  onLike: (request: SongRequest) => void;
+}) {
+  const liked = request.liked;
+  return (
+    <button
+      type="button"
+      className="like-btn"
+      data-liked={liked ? 'true' : undefined}
+      aria-pressed={liked}
+      disabled={liked || pending}
+      onClick={() => onLike(request)}
+    >
+      <span aria-hidden="true">{liked ? '♥' : '♡'}</span>{' '}
+      {liked ? 'Liked' : pending ? 'Liking…' : 'Like'}
+      <span className="visually-hidden">
+        {liked ? ` — you liked this, ${request.likes} total` : ` ${request.title}`}
       </span>
     </button>
   );

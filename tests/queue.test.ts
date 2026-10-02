@@ -24,11 +24,13 @@ const request = (overrides: Partial<SongRequest> & { id: string }): SongRequest 
   artwork: null,
   status: 'open',
   votes: 0,
+  likes: 0,
   createdAt: 1,
   lastVotedAt: 0,
   playedAt: null,
   stationId: null,
   mine: false,
+  liked: false,
   ...overrides,
 });
 
