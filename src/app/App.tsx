@@ -15,7 +15,6 @@ import {
 import {
   fallsBackToStations,
   pickNextRequest,
-  radioIsSilent,
   requestStationId,
   retireReason,
 } from '../lib/queue';
@@ -33,6 +32,18 @@ import { communityPick } from '../lib/community-pick';
 import { getPlayerManager } from '../services/playerManager';
 import { routeFromPathname, requestHrefFor, suggestHref } from '../lib/routes';
 import type { RouteName } from '../lib/routes';
+import { useBroadcast } from '../hooks/useBroadcast';
+import { decisionForBroadcastTrack, trackSignature } from '../lib/broadcast';
+import type { BroadcastScope } from '../lib/broadcast';
+import { isSupabaseConfigured } from '../lib/supabase-env';
+import {
+  loadPlayback,
+  loadTuning,
+  markHasPlayed,
+  saveMuted,
+  saveTuning,
+  saveVolume,
+} from '../lib/player-prefs';
 
 import { HomeNav } from '../components/HomeNav';
 import { CinematicHero } from '../components/CinematicHero';
@@ -55,18 +66,41 @@ const queryParam = (name: string): string | null =>
     ? null
     : new URLSearchParams(window.location.search).get(name);
 
-/** Deep link first; otherwise the identity of the MIX chip. */
-const initialState = (): { category: CategoryId; station: Station | null } => {
+/**
+ * Deep link first; otherwise this browser's own tuning; otherwise the MIX chip.
+ * Restored state never plays anything — the Play button is the only gesture
+ * that starts audio (and the flag it sets powers the welcome-back line).
+ */
+const initialState = (): {
+  category: CategoryId;
+  station: Station | null;
+  scope: BroadcastScope;
+  resumed: boolean;
+} => {
   const linked = findStation(queryParam('station'));
   const fromUrl = queryParam('category');
+  const stored = linked || fromUrl ? null : loadTuning();
   const category: CategoryId = linked
     ? linked.category
     : fromUrl && isCategoryId(fromUrl)
       ? fromUrl
-      : 'mix';
+      : stored && isCategoryId(stored.category)
+        ? stored.category
+        : 'mix';
   const station =
-    linked ?? findStation(CATEGORY_MAP[category]?.flagship) ?? STATIONS[0] ?? null;
-  return { category, station };
+    linked ??
+    (stored?.stationId ? findStation(stored.stationId) : null) ??
+    findStation(CATEGORY_MAP[category]?.flagship) ??
+    STATIONS[0] ??
+    null;
+  const scope: BroadcastScope = linked
+    ? 'local'
+    : stored?.scope === 'local'
+      ? 'local'
+      : isSupabaseConfigured()
+        ? 'channel'
+        : 'local';
+  return { category, station, scope, resumed: !linked && stored !== null };
 };
 
 /**
@@ -78,6 +112,9 @@ export default function App() {
   const [initial] = useState(initialState);
   const [category, setCategory] = useState<CategoryId>(initial.category);
   const [selected, setSelected] = useState<Station | null>(initial.station);
+  // Where the one global player points: the shared channel, or a station the
+  // listener tuned on purpose (it stays local until category switch or LIVE).
+  const [scope, setScope] = useState<BroadcastScope>(initial.scope);
 
   // Two views, one shell: the radio screen and the community request wall.
   const [route, setRoute] = useState<RouteName>(() =>
@@ -203,13 +240,39 @@ export default function App() {
   // latest advance logic without re-creating the audio element.
   const stepRef = useRef<(direction: 1 | -1) => void>(() => {});
   const advanceRef = useRef<(origin: QueueOrigin) => void>(() => {});
-  // Both engines land here: at every boundary (sample track ended, request
-  // finished, playlist video changed) the community queue gets first refusal.
+  const boundaryRef = useRef<(origin: QueueOrigin) => void>(() => {});
+  // Both engines land here: locally the old queue decides; on the live channel
+  // the server's compare-and-swap owns the boundary.
   const player = useRadioPlayer({
-    onEnded: (origin) => advanceRef.current(origin ?? 'audio'),
+    onEnded: (origin) => boundaryRef.current(origin ?? 'audio'),
   });
   const playerRef = useRef(player);
   playerRef.current = player;
+
+  // The shared broadcast for this category: one clock, one queue, one truth.
+  const channel = useBroadcast(category);
+  const channelRef = useRef(channel);
+  channelRef.current = channel;
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
+  /** Signature of the channel song the single global player currently holds. */
+  const [loadedChannel, setLoadedChannel] = useState<string | null>(null);
+  const loadedChannelRef = useRef<string | null>(null);
+  const loadedStartedRef = useRef<string | null>(null);
+  /** Pending join-seek target (seconds) — retried until the engine lands it. */
+  const joinSeekRef = useRef<number | null>(null);
+  const errorSkipRef = useRef<string | null>(null);
+  const welcomeRef = useRef(false);
+
+  // One trampoline for every track end: the live channel ends through the
+  // server's CAS; a local tune keeps the legacy community-queue behaviour.
+  boundaryRef.current = (origin) => {
+    if (scopeRef.current === 'channel') {
+      void channelRef.current.advance();
+      return;
+    }
+    advanceRef.current(origin);
+  };
 
   const pool = useMemo(() => stationsForCategory(category), [category]);
 
@@ -244,8 +307,21 @@ export default function App() {
     [updateActiveRequest],
   );
 
+  /**
+   * A local tune: the listener pointed the player somewhere on purpose. The
+   * channel keeps running for everyone else — this device leaves it until
+   * the category changes or LIVE brings it back.
+   */
+  const retuneLocal = useCallback(() => {
+    loadedChannelRef.current = null;
+    loadedStartedRef.current = null;
+    setLoadedChannel(null);
+    setScope('local');
+  }, []);
+
   const startStation = useCallback(
     async (station: Station) => {
+      retuneLocal();
       updateActiveRequest(null);
       const decision = decideSource(station);
       if (!isPlayableDecision(decision)) {
@@ -262,13 +338,70 @@ export default function App() {
       }
       await playerRef.current.play();
     },
-    [notify, updateActiveRequest, goToRequest],
+    [notify, updateActiveRequest, goToRequest, retuneLocal],
+  );
+
+  /**
+   * Joining the live channel: load what is on air and seek to the shared
+   * position, so a late listener lands on the same second as everyone else.
+   * Nothing here plays without a gesture — the caller decides that.
+   */
+  const joinChannel = useCallback(
+    async (autoplay: boolean) => {
+      const api = playerRef.current;
+      const current = channelRef.current;
+      const track = current.track;
+      if (!track) {
+        // The channel has not answered (yet): the honest fallback is the
+        // selected station when it can actually play here — never a fake.
+        const station = selected;
+        const decision = station ? decideSource(station) : null;
+        if (station && decision && isPlayableDecision(decision)) {
+          await startStation(station);
+        } else {
+          notify('The live channel is not available right now — try again.');
+        }
+        return;
+      }
+      const signature = trackSignature(track);
+      if (loadedChannelRef.current !== signature) {
+        const decision = decisionForBroadcastTrack(track);
+        if (!decision) {
+          notify('The live channel is airing a source this player cannot reach — moving on.');
+          void current.advance();
+          return;
+        }
+        api.load(track.station_slug ?? `channel:${track.category_slug}`, decision);
+        loadedChannelRef.current = signature;
+        loadedStartedRef.current = track.started_at;
+        setLoadedChannel(signature);
+        api.seek(current.elapsed);
+        joinSeekRef.current = current.elapsed;
+      } else {
+        // Same song, but possibly far behind after a pause: re-sync first.
+        const drift = Math.abs(api.currentTime - current.elapsed);
+        if (drift > 2) {
+          api.seek(current.elapsed);
+          joinSeekRef.current = current.elapsed;
+        }
+      }
+      if (autoplay) await api.play();
+    },
+    [notify, selected, startStation],
   );
 
   const togglePlay = useCallback(async () => {
     const station = selected;
-    if (!station) return;
     const current = playerRef.current;
+    if (scopeRef.current === 'channel') {
+      if (current.status === 'playing') {
+        current.pause(); // pausing hears nothing; the channel keeps airing
+        return;
+      }
+      await joinChannel(true);
+      return;
+    }
+    if (!station) return;
     const requestOnAir = activeRequestRef.current;
     if (requestOnAir && current.stationId === requestStationId(requestOnAir.id)) {
       // The request owns playback right now — pause it, don't restart the station.
@@ -287,26 +420,39 @@ export default function App() {
     }
     if (current.stationId === station.id && current.isPlayable) await current.toggle();
     else await startStation(station);
-  }, [selected, startStation, notify, goToRequest]);
+  }, [selected, joinChannel, startStation, notify, goToRequest]);
 
   /**
    * The core interaction: a chip selects a station set and the hero switches to
    * that category's flagship — same page, same layout, no route change.
-   * Audio already playing keeps playing across the switch.
+   * A category switch rejoins the shared channel: every category owns one.
    */
   const selectCategory = useCallback(
     (id: CategoryId) => {
       setCategory(id);
+      setScope('channel');
+      loadedChannelRef.current = null;
+      loadedStartedRef.current = null;
+      setLoadedChannel(null);
       const flagship = findStation(CATEGORY_MAP[id]?.flagship);
       if (!flagship) return;
-      const keepListening = playerRef.current.status === 'playing';
-      goTo(flagship, keepListening && isPlayableDecision(decideSource(flagship)));
+      // Hero identity only — from here the channel owns the audio.
+      goTo(flagship, false);
     },
     [goTo],
   );
 
+  /** Back to live: drop the local tune and let the channel's effect load in. */
+  const goLive = useCallback(() => {
+    loadedChannelRef.current = null;
+    loadedStartedRef.current = null;
+    setLoadedChannel(null);
+    setScope('channel');
+  }, []);
+
   const step = useCallback(
     (direction: 1 | -1) => {
+      retuneLocal(); // stepping stations leaves the live channel on purpose
       const list = pool.length > 0 ? pool : STATIONS;
       const index = selected ? list.findIndex((s) => s.id === selected.id) : -1;
       if (list.length === 0) return;
@@ -321,13 +467,14 @@ export default function App() {
       const shouldAutoplay = playerRef.current.status === 'playing';
       goTo(target, shouldAutoplay);
     },
-    [pool, selected, goTo],
+    [pool, selected, goTo, retuneLocal],
   );
 
   /** One request = one official provider embed, loaded like any other source. */
   const playRequest = useCallback(
     async (request: SongRequest): Promise<boolean> => {
       if (activeRequestRef.current?.id === request.id) return true; // already on air
+      retuneLocal(); // a preview is this device's own decision, not the channel's
       const source = embedSourceForRequest(request);
       if (!source) return false;
       updateActiveRequest(request);
@@ -344,23 +491,7 @@ export default function App() {
       notify(`Now playing: ${request.title}`);
       return true;
     },
-    [notify, updateActiveRequest],
-  );
-
-  /**
-   * A submit or a vote may take the air right away — but only while the radio
-   * has never started this session (nothing is playing to interrupt, and the
-   * click is a live gesture). Once anything has played, the boundary rule owns
-   * the hand-off: the current song always finishes first.
-   */
-  const maybeAir = useCallback(
-    (request: SongRequest) => {
-      if (!radioIsSilent(playerRef.current.status, activeRequestRef.current !== null)) return;
-      void playRequest(request).then((started) => {
-        if (!started) notify('Press ► Play on the request to hear it.');
-      });
-    },
-    [notify, playRequest],
+    [notify, updateActiveRequest, retuneLocal],
   );
 
   /** On-demand play from a request card: the listener's explicit "now". */
@@ -410,6 +541,114 @@ export default function App() {
   stepRef.current = step;
   advanceRef.current = advanceProgram;
 
+  /**
+   * The channel owns the global player while this device is live: every new
+   * song (or fresh clock round of a looping one) is loaded and seeked to the
+   * shared position. Autoplay only ever continues what is already audible —
+   * a page that has never been played loads paused, awaiting its gesture.
+   */
+  const channelTrack = channel.track;
+  useEffect(() => {
+    if (scope !== 'channel') return;
+    const track = channelRef.current.track;
+    const api = playerRef.current;
+    if (!track) return;
+    const signature = trackSignature(track);
+
+    if (loadedChannelRef.current === signature) {
+      if (loadedStartedRef.current !== track.started_at) {
+        // Same song, fresh clock — the programme looped; snap to its start.
+        loadedStartedRef.current = track.started_at;
+        api.seek(channelRef.current.elapsed);
+        joinSeekRef.current = channelRef.current.elapsed;
+      }
+      return;
+    }
+
+    const wasPlaying = api.status === 'playing' || api.status === 'loading';
+    const decision = decisionForBroadcastTrack(track);
+    loadedChannelRef.current = signature;
+    loadedStartedRef.current = track.started_at;
+    setLoadedChannel(signature);
+    updateActiveRequest(null); // the channel, not a preview, describes playback now
+
+    if (!decision) {
+      // Honest refusal: no source or failed validation — skip past it.
+      notify('The live channel is airing a source this player cannot reach — moving on.');
+      void channelRef.current.advance();
+      return;
+    }
+    api.load(track.station_slug ?? `channel:${track.category_slug}`, decision);
+    api.seek(channelRef.current.elapsed);
+    joinSeekRef.current = channelRef.current.elapsed;
+    if (wasPlaying) void api.play();
+  }, [scope, channelTrack, notify, updateActiveRequest]);
+
+  // Join-seek is retried until the engine actually lands there (embeds spawn
+  // their iframe asynchronously; a fresh audio element needs its metadata).
+  useEffect(() => {
+    const target = joinSeekRef.current;
+    if (target === null) return;
+    const api = playerRef.current;
+    if (api.status === 'idle' || api.status === 'error') {
+      joinSeekRef.current = null;
+      return;
+    }
+    if (Math.abs(api.currentTime - target) <= 2) {
+      joinSeekRef.current = null;
+      return;
+    }
+    api.seek(target);
+  }, [channel.elapsed, scope]);
+
+  // A source that will not play is skipped honestly — one attempt per track,
+  // and never while the browser itself is offline (that would churn the queue).
+  useEffect(() => {
+    if (scope !== 'channel' || !browserOnline) return;
+    const track = channelRef.current.track;
+    if (!track || player.status !== 'error') return;
+    const signature = trackSignature(track);
+    if (errorSkipRef.current === signature) return;
+    errorSkipRef.current = signature;
+    notify('This track could not play — skipping to the next on the channel.');
+    void channelRef.current.advance();
+  }, [scope, browserOnline, channel.track, player.status, notify]);
+
+  // What this listener chose last time — local to this browser, never sent
+  // anywhere. The first real playback marks the session for next visit's line.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    saveTuning({ category, stationId: selected?.id ?? null, scope });
+  }, [category, selected, scope]);
+
+  useEffect(() => {
+    saveVolume(player.volume);
+  }, [player.volume]);
+  useEffect(() => {
+    saveMuted(player.muted);
+  }, [player.muted]);
+
+  useEffect(() => {
+    if (player.status === 'playing') markHasPlayed();
+  }, [player.status]);
+
+  // Restore the preference exactly once, before anything could autoplay.
+  useEffect(() => {
+    const prefs = loadPlayback();
+    if (prefs.volume !== null) playerRef.current.setVolume(prefs.volume);
+    if (prefs.muted && !playerRef.current.muted) playerRef.current.toggleMute();
+    if (initial.resumed && prefs.hasPlayed && !welcomeRef.current) {
+      welcomeRef.current = true;
+      const label = initial.station ? ` to resume ${initial.station.name}` : '';
+      const timer = window.setTimeout(() => {
+        notify(`Welcome back — press Play${label}.`);
+      }, 500);
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-time restore
+  }, []);
+
   // A request whose source fails is skipped for this session — the next
   // highest-voted one airs instead. Repeated failures end the queue cleanly.
   useEffect(() => {
@@ -437,6 +676,9 @@ export default function App() {
       current.seek(target);
       return;
     }
+    // No duration to seek: stations step only while locally tuned — the live
+    // channel has no "next" for one listener to force on everyone.
+    if (scopeRef.current === 'channel') return;
     stepRef.current(direction);
   }, []);
 
@@ -547,10 +789,39 @@ export default function App() {
   const requestOnAir = Boolean(
     activeRequest && player.stationId === requestStationId(activeRequest.id),
   );
+  // The wall's "on air" badge follows the shared channel — site-wide truth,
+  // whatever this particular device happens to be tuned to right now.
+  const onAirSuggestionId =
+    channel.track?.track_kind === 'suggestion' ? channel.track.track_key : null;
+  const activeRequestId = onAirSuggestionId ?? activeRequest?.id ?? null;
+
   // Community Pick — one helper owns the honesty rules for pill, dock and wall.
-  const pick = communityPick(activeRequest, hasVoted);
-  const isCurrentTrack = Boolean(selected && player.stationId === selected.id) || requestOnAir;
-  const canPlay = Boolean(selected && isPlayableDecision(decideSource(selected)));
+  const pick =
+    scope === 'channel'
+      ? communityPick(
+          channel.track?.track_kind === 'suggestion'
+            ? { id: channel.track.track_key, votes: channel.track.votes ?? 0 }
+            : null,
+          hasVoted,
+        )
+      : communityPick(activeRequest, hasVoted);
+  const isCurrentTrack =
+    scope === 'channel'
+      ? Boolean(channel.track && loadedChannel === trackSignature(channel.track))
+      : Boolean(selected && player.stationId === selected.id) || requestOnAir;
+  const canPlay =
+    scope === 'channel' && channel.track
+      ? decisionForBroadcastTrack(channel.track) !== null
+      : Boolean(selected && isPlayableDecision(decideSource(selected)));
+
+  // The pill title: the channel's song while live; the preview or the
+  // provider-reported title while this device is tuned locally.
+  const pillTitle =
+    scope === 'channel'
+      ? (player.trackTitle ?? channel.track?.title ?? null)
+      : activeRequest
+        ? activeRequest.title
+        : player.trackTitle;
 
   const playerState: PlayerState = !browserOnline
     ? 'offline'
@@ -615,9 +886,23 @@ export default function App() {
         <SuggestPage
           station={selected}
           onNotify={notify}
-          activeRequestId={activeRequest?.id ?? null}
+          activeRequestId={activeRequestId}
           onPlayRequest={startRequest}
-          onMaybeAir={maybeAir}
+          channel={
+            channel.track
+              ? {
+                  title: channel.track.title,
+                  subtitle: channel.track.subtitle,
+                  votes: channel.track.votes ?? null,
+                  elapsed: channel.elapsed,
+                }
+              : null
+          }
+          onListenLive={() => {
+            goLive();
+            navigate('/');
+            void joinChannel(true);
+          }}
         />
       ) : (
         <main>
@@ -627,6 +912,13 @@ export default function App() {
             isCurrentTrack={isCurrentTrack}
             activeCategory={category}
             listeners={listeners}
+            primaryLabel={
+              scope === 'channel' && channel.track
+                ? isCurrentTrack && (playerState === 'playing' || playerState === 'buffering')
+                  ? 'Pause'
+                  : 'Listen live'
+                : undefined
+            }
             onPrimary={() => {
               if (!selected) return;
               // CTA reads "Pause" while this station is audible — toggle, don't restart.
@@ -655,7 +947,9 @@ export default function App() {
         station={playerStation}
         playerState={playerState}
         isCurrentTrack={
-          Boolean(playerStation && player.stationId === playerStation.id) || requestOnAir
+          scope === 'channel'
+            ? isCurrentTrack
+            : Boolean(playerStation && player.stationId === playerStation.id) || requestOnAir
         }
         currentTime={player.currentTime}
         duration={player.duration}
@@ -663,7 +957,7 @@ export default function App() {
         muted={player.muted}
         canPlay={canPlay}
         provider={dockProvider}
-        trackTitle={activeRequest ? activeRequest.title : player.trackTitle}
+        trackTitle={pillTitle}
         contextLabel={pick.label}
         contextVotes={pick.votes}
         contextHelped={pick.helped}
@@ -671,6 +965,20 @@ export default function App() {
         expanded={playerExpanded}
         minimized={playerMinimized}
         queue={pool}
+        liveScope={scope === 'channel'}
+        artwork={scope === 'channel' ? channel.track?.artwork_url ?? null : null}
+        upcoming={
+          scope === 'channel'
+            ? channel.upcoming.map((item) => ({
+                key: item.key,
+                title: item.title,
+                subtitle: item.subtitle ?? null,
+                artwork: item.artwork ?? null,
+                votes: item.votes ?? null,
+              }))
+            : null
+        }
+        onGoLive={scope === 'local' && channel.track ? goLive : null}
         onToggleExpand={() => setPlayerExpanded((value) => !value)}
         onToggleMinimize={() => setPlayerMinimized((value) => !value)}
         onPrevious={() => stepRef.current(-1)}

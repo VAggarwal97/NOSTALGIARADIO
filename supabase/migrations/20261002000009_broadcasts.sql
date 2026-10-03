@@ -231,6 +231,7 @@ declare
   v_row       public.broadcasts;
   v_next      jsonb;
   v_upcoming  jsonb;
+  v_broadcast jsonb;
 begin
   if p_category is null
      or not exists (select 1 from public.categories c where c.slug = p_category) then
@@ -334,8 +335,23 @@ begin
        limit 6
     ) ranked;
 
+  -- A community request on air carries its live vote count, so the pill's
+  -- "N requested" is a database fact — never a guess, never a stored total.
+  if v_row.track_kind = 'suggestion' then
+    v_broadcast := to_jsonb(v_row) || jsonb_build_object(
+      'votes',
+      coalesce(
+        (select v.votes from public.suggestion_vote_counts v
+          where v.suggestion_id::text = v_row.track_key),
+        0
+      )
+    );
+  else
+    v_broadcast := to_jsonb(v_row);
+  end if;
+
   return jsonb_build_object(
-    'broadcast', to_jsonb(v_row),
+    'broadcast', v_broadcast,
     'server_now', v_now,
     'upcoming', v_upcoming
   );

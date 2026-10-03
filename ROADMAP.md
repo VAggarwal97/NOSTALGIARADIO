@@ -53,13 +53,15 @@ D Live layer → E Signature radio UI → F Discovery → G Donation → H Platf
 | Feature | Status | Notes |
 |---|---|---|
 | Realtime wall updates (submit/vote → all viewers) | ✅ | broadcast + ≤20s poll |
+| Synchronized live broadcast (shared clock → all listeners) | ✅ | server `started_at` + `broadcast_state`; join-seek; CAS auto-advance |
+| Votes-ordered queue on air (suggestions first, then rotation) | ✅ | migration 9 picks; client never fakes airtime |
+| Realtime player events (now playing → all) | ✅ | `TRACK_CHANGED` on `public.broadcasts` — state only; audio from source |
 | Live listener count (aggregated presence) | ◐ | honest local-tally only; Supabase presence next |
 | Per-station listener counts | ⬜ | Batch D |
 | Listeners around the world (coarse geo) | ⬜ | Batch D |
 | "Listening with you" copy | ⬜ | Batch D |
 | Trending/community momentum feed | ⬜ | Batch D |
 | Weekly recap / public statistics page | ⬜ | Batch D (real queries only) |
-| Realtime player events (now playing → all) | ⬜ | Batch D |
 | High-frequency position telemetry | ❌ | rejected by design |
 
 ## 4. Discovery

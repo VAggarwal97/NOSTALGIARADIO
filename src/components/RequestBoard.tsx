@@ -16,8 +16,6 @@ interface RequestBoardProps {
   activeRequestId: string | null;
   /** "► Play" on an open card: hear this request immediately. */
   onPlayRequest: (request: SongRequest) => void;
-  /** After a confirmed vote: the silent radio may air it (App decides). */
-  onMaybeAir: (request: SongRequest) => void;
 }
 
 type Load = { items: SongRequest[]; total: number } | null;
@@ -65,7 +63,6 @@ export function RequestBoard({
   onShare,
   activeRequestId,
   onPlayRequest,
-  onMaybeAir,
 }: RequestBoardProps) {
   const [tab, setTab] = useState<RequestTab>('wanted');
   const [query, setQuery] = useState('');
@@ -201,10 +198,9 @@ export function RequestBoard({
         .then((result) => {
           setPendingVote(null);
           if (result.ok) {
+            // The count and the ranking move only now. Airing is the shared
+            // channel's job: votes feed the queue, the boundary does the rest.
             setLeadingCandidate(result.request.id);
-            // A vote is a fresh gesture: on a radio that never started, that's
-            // enough to take the air. Anything already playing finishes first.
-            onMaybeAir(result.request);
           } else if (result.reason === 'already-voted') {
             setVoteNote({ id: request.id, text: 'You have already voted' });
           } else if (result.reason === 'rate-limited') {
@@ -218,7 +214,7 @@ export function RequestBoard({
           setVoteNote({ id: request.id, text: 'Vote could not be confirmed' });
         });
     },
-    [api, pendingVote, onMaybeAir],
+    [api, pendingVote],
   );
 
   // A like is affection, never a queue move: no leading-candidate, no air

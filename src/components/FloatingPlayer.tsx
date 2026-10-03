@@ -38,6 +38,20 @@ interface FloatingPlayerProps {
   minimized: boolean;
   /** The stations previous / next traverse — the real queue, not a decoration. */
   queue: Station[];
+  /** True while this device follows the shared live channel (transport adapts). */
+  liveScope?: boolean;
+  /** Artwork of the on-air channel track — overrides the station's art. */
+  artwork?: string | null;
+  /** Votes-ordered queue of the live channel; null while locally tuned. */
+  upcoming?: Array<{
+    key: string;
+    title: string;
+    subtitle: string | null;
+    artwork: string | null;
+    votes: number | null;
+  }> | null;
+  /** Back-to-live handler; null while already live (the button hides). */
+  onGoLive?: (() => void) | null;
   onToggleExpand: () => void;
   onToggleMinimize: () => void;
   onPrevious: () => void;
@@ -89,6 +103,10 @@ export function FloatingPlayer({
   expanded,
   minimized,
   queue,
+  liveScope = false,
+  artwork = null,
+  upcoming = null,
+  onGoLive = null,
   onToggleExpand,
   onToggleMinimize,
   onPrevious,
@@ -145,8 +163,13 @@ export function FloatingPlayer({
         data-minimized={minimized}
       >
         <div className="player-row">
-          {station ? (
-            <img className="player-art" key={station.id} src={station.artwork} alt="" />
+          {station || artwork ? (
+            <img
+              className="player-art"
+              key={artwork ?? station?.id ?? 'art'}
+              src={artwork ?? station?.artwork ?? ''}
+              alt=""
+            />
           ) : (
             <span className="player-art" aria-hidden="true" />
           )}
@@ -160,15 +183,25 @@ export function FloatingPlayer({
           </div>
 
           <div className="player-controls">
-            <button
-              type="button"
-              className="icon-btn player-step"
-              onClick={onPrevious}
-              title="Previous station"
-            >
-              <PrevIcon size={16} />
-              <span className="visually-hidden">Previous station</span>
-            </button>
+            {liveScope ? (
+              <span
+                className="player-live"
+                title="You are hearing the shared live channel"
+              >
+                <span className="dot" aria-hidden="true" />
+                Live
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="icon-btn player-step"
+                onClick={onPrevious}
+                title="Previous station"
+              >
+                <PrevIcon size={16} />
+                <span className="visually-hidden">Previous station</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -181,15 +214,19 @@ export function FloatingPlayer({
               {live ? <PauseIcon size={18} /> : <PlayIcon size={18} />}
             </button>
 
-            <button
-              type="button"
-              className="icon-btn player-step"
-              onClick={onNext}
-              title={contextLabel ? 'Next request' : 'Next station'}
-            >
-              <NextIcon size={16} />
-              <span className="visually-hidden">{contextLabel ? 'Next request' : 'Next station'}</span>
-            </button>
+            {liveScope ? null : (
+              <button
+                type="button"
+                className="icon-btn player-step"
+                onClick={onNext}
+                title={contextLabel ? 'Next request' : 'Next station'}
+              >
+                <NextIcon size={16} />
+                <span className="visually-hidden">
+                  {contextLabel ? 'Next request' : 'Next station'}
+                </span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -206,6 +243,19 @@ export function FloatingPlayer({
           </div>
 
           <div className="player-tools">
+            {onGoLive ? (
+              <button
+                type="button"
+                className="icon-btn player-golive"
+                onClick={onGoLive}
+                title="Back to the shared live channel"
+              >
+                <span className="dot" aria-hidden="true" />
+                <span className="player-golive-label">Live</span>
+                <span className="visually-hidden">Back to the live channel</span>
+              </button>
+            ) : null}
+
             {hasVolume ? (
               <div className="volume">
                 <button
@@ -280,9 +330,7 @@ export function FloatingPlayer({
           ) : (
             <div className="progress-time">
               <span>
-                {station
-                  ? `${providerLabel ?? 'Live'} source · no duration reported`
-                  : 'Nothing loaded'}
+                {station ? `Listening ${formatTime(currentTime)} · length not reported` : 'Nothing loaded'}
               </span>
               <span>—</span>
             </div>
@@ -305,7 +353,32 @@ export function FloatingPlayer({
 
         {queueOpen ? (
           <div className="queue-pop" role="group" aria-label="Queue">
-            <div className="queue-head">Up next in this station set</div>
+            {upcoming && upcoming.length > 0 ? (
+              <>
+                <div className="queue-head queue-head--live">Up next on air · by votes</div>
+                {upcoming.map((item) => (
+                  <div key={item.key} className="queue-item queue-item--live">
+                    {item.artwork ? (
+                      <img className="queue-art" src={item.artwork} alt="" loading="lazy" />
+                    ) : (
+                      <span className="queue-art" aria-hidden="true" />
+                    )}
+                    <span>
+                      <span className="queue-name">{item.title}</span>
+                      <span className="queue-meta">
+                        {item.subtitle ?? 'Community request'}
+                        {item.votes ? ` · ${item.votes} votes` : ''}
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </>
+            ) : null}
+            <div className="queue-head">
+              {upcoming && upcoming.length > 0
+                ? 'Tune a station'
+                : 'Up next in this station set'}
+            </div>
             {queue.map((item) => (
               <button
                 key={item.id}

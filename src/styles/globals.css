@@ -1390,6 +1390,69 @@ img {
   color: var(--muted);
 }
 
+/* Live channel states inside the pill: the LIVE badge replaces prev/next
+   while the shared channel is tuned, and the tools button returns from a
+   local tune. One radio, one truth — the transport never fakes control. */
+.queue-head--live {
+  color: var(--accent-text);
+}
+
+.queue-item--live {
+  cursor: default;
+}
+
+.queue-item--live .queue-art {
+  background: rgba(244, 235, 221, 0.08);
+}
+
+.player-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid rgba(244, 235, 221, 0.28);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(244, 235, 221, 0.92);
+}
+
+.player-live .dot,
+.player-golive .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff4d4d;
+  animation: live-pulse 1.8s ease infinite;
+}
+
+.player-golive {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.player-golive-label {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+@keyframes live-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 77, 77, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(255, 77, 77, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 77, 77, 0);
+  }
+}
+
 /* Now Playing chip — appears when the pill is minimized. */
 .now-playing {
   position: fixed;

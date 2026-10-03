@@ -16,9 +16,26 @@ interface SuggestPageProps {
   activeRequestId: string | null;
   /** Plays a request on demand from its own card (explicit listener gesture). */
   onPlayRequest: (request: SongRequest) => void;
-  /** After a submit or a confirmed vote: airs it only if the radio never started. */
-  onMaybeAir: (request: SongRequest) => void;
+  /** What the shared channel is airing right now — the LIVE strip's truth. */
+  channel: ChannelStrip | null;
+  /** Explicit gesture: return home, join the channel at its live position. */
+  onListenLive: () => void;
 }
+
+/** On-air track of the shared channel, as rendered by the LIVE strip. */
+export interface ChannelStrip {
+  title: string;
+  subtitle: string | null;
+  votes: number | null;
+  elapsed: number;
+}
+
+const formatElapsed = (seconds: number): string => {
+  if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+};
 
 const HOW_IT_WORKS = [
   {
@@ -50,7 +67,8 @@ export function SuggestPage({
   onNotify,
   activeRequestId,
   onPlayRequest,
-  onMaybeAir,
+  channel,
+  onListenLive,
 }: SuggestPageProps) {
   const [focusToken, setFocusToken] = useState(0);
   const [spotlightId, setSpotlightId] = useState<string | null>(null);
@@ -135,12 +153,32 @@ export function SuggestPage({
             onSubmitted={(request) => {
               setRequestedMissing(false);
               setSpotlightId(request.id);
-              // A brand-new request goes straight to a silent radio — nothing to
-              // interrupt, and the submit click is the gesture that allows it.
-              onMaybeAir(request);
+              // No auto-air, ever: the submit lands in the queue, and the
+              // votes-ordered scheduler decides when it reaches the channel.
             }}
             onJumpTo={jumpTo}
           />
+
+          {/* LIVE strip — the shared channel's truth, right on the page where
+              people ask for songs: what is on air, how long, and one tap in. */}
+          {channel ? (
+            <div className="live-strip" role="status">
+              <span className="live-strip-dot" aria-hidden="true" />
+              <span className="live-strip-tag">On air · {formatElapsed(channel.elapsed)}</span>
+              <span className="live-strip-song">
+                {channel.title}
+                {channel.subtitle ? (
+                  <span className="live-strip-sub"> — {channel.subtitle}</span>
+                ) : null}
+              </span>
+              {channel.votes ? (
+                <span className="live-strip-votes">{channel.votes} votes</span>
+              ) : null}
+              <button type="button" className="live-strip-cta" onClick={onListenLive}>
+                Listen live
+              </button>
+            </div>
+          ) : null}
         </header>
 
         <section className="how" aria-labelledby="how-title">
@@ -171,7 +209,6 @@ export function SuggestPage({
           onShare={(request) => void shareRequest(request)}
           activeRequestId={activeRequestId}
           onPlayRequest={onPlayRequest}
-          onMaybeAir={onMaybeAir}
         />
 
         <p className="suggest-keep">

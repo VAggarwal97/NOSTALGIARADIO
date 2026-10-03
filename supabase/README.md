@@ -453,3 +453,52 @@ supabase-js; the smoke render proves the unconfigured state even when
 If any step shows an instant success before the database answered, or a count
 nobody voted for, it's a bug — `tests/communityWiring.test.ts` pins each of
 these contracts.
+
+## 11. The live broadcast channel (migration 9)
+
+One row per category in `public.broadcasts` is the shared radio: what is on
+air, since when (`started_at`), and what the votes queued up next. Every
+listener — home, suggest-music, brand-new tab — derives its position from
+`(server_now − started_at)` read at fetch plus local time since; nothing
+per-user is stored, and audio bytes never pass through this table (sources
+stream from where they already live: local file, YouTube, Spotify).
+
+### The anon surface (all verified live, §1's probe log)
+
+| Call | Purpose | Why it's safe |
+|---|---|---|
+| `broadcast_state(text)` | snapshot + `server_now` + votes-ordered `upcoming` (+ `votes` while a suggestion is on air) | `security definer`, `search_path` pinned, read-only |
+| `advance_broadcast(text, timestamptz)` | end-of-track advance | compare-and-swap on the caller's observed `started_at` (`for update`); the loser's call is a no-op |
+| `report_broadcast_duration(text, timestamptz, integer)` | fill a provider-known length | clamped to 10–900s, suggestion rows only, CAS on `started_at` + `duration_sec is null` |
+
+`broadcast_next_track` and `broadcast_suggestion_matches` are revoked from
+`public, anon, authenticated` — callable only by the definer functions. Direct
+`PATCH`/`INSERT` on the table answers `42501`; RLS is select-only
+(`broadcasts_open_read`); `publication supabase_realtime` carries `TRACK_CHANGED`
+(state convergence only — the 15s poll remains the fallback).
+
+### Client wiring
+
+- `src/lib/broadcast.ts` — pure types, clock math, row validation, source
+  mapping (`decisionForBroadcastTrack` → engine decision or honest `null`).
+- `src/lib/supabase-broadcast-store.ts` — PostgREST + realtime only; loaded
+  through a dynamic import so the Supabase chunk stays out of the public bundle.
+- `src/hooks/useBroadcast.ts` — fetch on join/category switch, realtime + poll,
+  1s tick, boundary CAS, duration report. It never touches the engine.
+- `src/lib/player-prefs.ts` — volume/mute/tuning remembered in **this browser
+  only**; the first real Play arms the one-time "Welcome back" line.
+
+### Behaviour rules the tests pin
+
+- Scope `channel | local`: tuning a station (or pressing prev/next) is a
+  *local* decision; LIVE / a category switch rejoins the channel. Prev/next
+  transport is hidden while live (one listener cannot skip for everyone);
+  seek stays enabled (local timeshift, re-syncs at the boundary).
+- A late join loads the on-air track and seeks to the shared position
+  (retried each tick until the engine lands); a paused page **never**
+  autoplays — Play is the only gesture that starts audio.
+- A pointer the player cannot reach (`null` decision) → honest error → CAS
+  advance; the loop restarts of a one-song programme re-sync via `started_at`.
+- `tests/broadcast.test.ts` (clock/votes math), `tests/broadcastMigration.test.ts`
+  (this section's fence) and `tests/demoAudioDurations.test.ts` (wav bytes vs
+  the seed's claimed length) must stay green.

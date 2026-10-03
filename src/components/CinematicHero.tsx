@@ -11,6 +11,11 @@ interface CinematicHeroProps {
   station: Station | null;
   playerState: PlayerState;
   isCurrentTrack: boolean;
+  /**
+   * Channel-scope CTA override ("Listen live" / "Pause"). Undefined = the
+   * station's own decision label — the classic local-tune behaviour.
+   */
+  primaryLabel?: string;
   /** Category the gallery should mark as active. */
   activeCategory: CategoryId;
   /** Approximate live sessions from the presence channel; null until known. */
@@ -42,6 +47,7 @@ export function CinematicHero({
   station,
   playerState,
   isCurrentTrack,
+  primaryLabel,
   activeCategory,
   listeners,
   onPrimary,
@@ -95,7 +101,7 @@ export function CinematicHero({
   const playingNow = isCurrentTrack && playerState === 'playing';
   const buffering = isCurrentTrack && playerState === 'buffering';
 
-  const primaryLabel = playingNow ? 'Pause' : labelForDecision(decision);
+  const ctaLabel = primaryLabel ?? (playingNow ? 'Pause' : labelForDecision(decision));
 
   return (
     <section className="hero" aria-label={`Featured station: ${station.name}`}>
@@ -160,7 +166,7 @@ export function CinematicHero({
                 ) : (
                   <PlayIcon size={16} />
                 )}
-                {primaryLabel}
+                {ctaLabel}
               </button>
 
               <button type="button" className="surprise-btn" onClick={onSurprise} title="Surprise me (R)">
