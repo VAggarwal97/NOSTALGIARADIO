@@ -144,16 +144,22 @@ async function main() {
       }
     }
 
-    // Hero-stage alternatives: real https image URLs only, never markup.
+    // Hero-stage alternatives: real image URLs only, never markup. Local
+    // /img paths (self-hosted, no third-party hotlink) or https URLs.
     if (station.backdrops !== undefined) {
       if (!Array.isArray(station.backdrops) || station.backdrops.length === 0 || station.backdrops.length > 12) {
         fail(`${at} backdrops must be an array of 1–12 URLs.`);
       } else {
         for (const [index, src] of station.backdrops.entries()) {
-          if (typeof src !== 'string' || !/^https:\/\/[^\s'"`<>]+$/i.test(src)) {
-            fail(`${at} backdrop #${index + 1} must be an https image URL, got "${String(src)}".`);
+          const isLocal = typeof src === 'string' && /^\/[^\s'"`<>]+$/i.test(src);
+          const isHttps = typeof src === 'string' && /^https:\/\/[^\s'"`<>]+$/i.test(src);
+          if (!isLocal && !isHttps) {
+            fail(`${at} backdrop #${index + 1} must be an https URL or a local /path, got "${String(src)}".`);
           } else if (EXECUTABLE.test(src)) {
             fail(`${at} backdrop #${index + 1} contains executable markup.`);
+          } else if (isLocal) {
+            const backdropFile = path.join(ROOT, 'public', src.replace(/^\//, ''));
+            if (!fs.existsSync(backdropFile)) fail(`${at} backdrop file is missing: ${src}`);
           }
         }
       }
@@ -253,19 +259,21 @@ async function main() {
     if (count > 1) warn(`Duplicate display name "${name}" appears ${count} times (allowed; IDs are unique).`);
   }
 
-  // The donate slot must never ship as an unnoticed placeholder or unsafe URL.
+  // The donate slot must never ship a dead "#" or an unsafe URL. An empty
+  // href is an intentional "not configured yet" state: the navbar renders the
+  // slot disabled and site_settings.donation_url enables it at runtime.
   try {
     const { DONATE_LINK } = await loadDataModule(path.join(DATA_DIR, 'donate.ts'));
     if (!DONATE_LINK || typeof DONATE_LINK.label !== 'string' || !DONATE_LINK.label.trim()) {
       fail('donate.ts DONATE_LINK.label must have text.');
     }
     const href = DONATE_LINK?.href;
-    if (typeof href !== 'string' || !href.trim()) {
-      fail('donate.ts DONATE_LINK.href must be a destination string ("#" keeps the placeholder).');
-    } else if (href !== '#' && !isSafeUrl(href)) {
-      fail(`donate.ts DONATE_LINK.href is unsafe or invalid: ${href}`);
+    if (typeof href !== 'string') {
+      fail('donate.ts DONATE_LINK.href must be a string ("" = not configured).');
     } else if (href === '#') {
-      warn('donate.ts DONATE_LINK.href is still the "#" placeholder — set the real donation link.');
+      fail('donate.ts DONATE_LINK.href is the dead "#" placeholder — use "" and set donation_url in /admin → Settings.');
+    } else if (href.trim() && !isSafeUrl(href)) {
+      fail(`donate.ts DONATE_LINK.href is unsafe or invalid: ${href}`);
     }
   } catch (error) {
     fail(`donate.ts could not be validated: ${error.message}`);

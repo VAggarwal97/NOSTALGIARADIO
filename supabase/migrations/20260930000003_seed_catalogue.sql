@@ -38,7 +38,7 @@ on conflict (slug) do update set
   sort_order = excluded.sort_order, active = excluded.active;
 
 insert into public.stations (slug, category_id, title, description, flagship, featured, demo, region, language, era, tags, artwork_url, backdrops, accent, source_url, audio_url, provider, playlist_url, action, source_type, status, now_playing_title, now_playing_subtitle, sort_order, active)
-select 'nostalgia-radio', c.id, 'Nostalgia Radio', 'Old roads. Forgotten songs. New memories.', true, true, true, 'Pan India', array['Hindi'], '1960s–2000s', array['nostalgia', 'classic', 'archive', 'memories'], '/art/neighborhood.svg', '["https://i.pinimg.com/1200x/8b/82/8f/8b828f5ce63e57c7c33a759f819544cd.jpg","https://i.pinimg.com/1200x/bd/48/2a/bd482a9fc6fe538cd82938014afd53f6.jpg","https://i.pinimg.com/1200x/9d/c7/55/9dc755f6d5b464cc7f2664aa205da10e.jpg","https://i.pinimg.com/1200x/cc/c4/f0/ccc4f0021b67e6d40aa4b01f0d91d7b4.jpg","https://i.pinimg.com/1200x/37/7e/f8/377ef862b0222fb6ba3381cced861378.jpg","https://i.pinimg.com/1200x/7c/32/ab/7c32abccf5a044047356cb724eb55d65.jpg","https://i.pinimg.com/1200x/b5/3e/3a/b53e3a7d55ae614e7742af481c9440c3.jpg"]'::jsonb, '#f05a45', 'https://nostalgiaradio-topaz.vercel.app/?station=nostalgia-radio', '/audio/demo-a.wav', 'youtube', 'https://music.youtube.com/playlist?list=PLjxsdvPZH24OZoxZSnuEqrW1crVtceCNG', 'play', 'embed', 'ready', null, null, 1, true
+select 'nostalgia-radio', c.id, 'Nostalgia Radio', 'Old roads. Forgotten songs. New memories.', true, true, true, 'Pan India', array['Hindi'], '1960s–2000s', array['nostalgia', 'classic', 'archive', 'memories'], '/art/neighborhood.svg', '["/img/backdrops/stage-1.jpg","/img/backdrops/stage-2.jpg","/img/backdrops/stage-3.jpg","/img/backdrops/stage-4.jpg","/img/backdrops/stage-5.jpg","/img/backdrops/stage-6.jpg","/img/backdrops/stage-7.jpg"]'::jsonb, '#f05a45', 'https://nostalgiaradio-topaz.vercel.app/?station=nostalgia-radio', '/audio/demo-a.wav', 'youtube', 'https://music.youtube.com/playlist?list=PLjxsdvPZH24OZoxZSnuEqrW1crVtceCNG', 'play', 'embed', 'ready', null, null, 1, true
 from public.categories c where c.slug = 'mix'
 union all
 select 'truck-wala-radio', c.id, 'Truck Wala Radio', 'Highway bangers, desi beats and trucker tales from India’s long roads.', true, true, true, 'Highway', array['Hindi'], '1990s–2000s', array['road', 'highway', 'people', 'memories'], '/art/highway.svg', null, '#e2543a', 'https://nostalgiaradio-topaz.vercel.app/?station=truck-wala-radio', '/audio/demo-a.wav', null, null, 'play', 'direct-audio', 'ready', 'Demo Tape A', 'Synthesised locally · not a licensed track', 2, true
@@ -164,55 +164,55 @@ on conflict (slug) do update set
 
 insert into public.songs (station_id, title, duration_sec, audio_url, artwork_url, source_type, sort_order, active)
 select (select id from public.stations where slug = 'nostalgia-radio'),
-       'Demo Tape A', 12, '/audio/demo-a.wav',
+       'Demo Tape A', 60, '/audio/demo-a.wav',
        '/art/neighborhood.svg', 'direct-audio', 1, true
 union all
 select (select id from public.stations where slug = 'truck-wala-radio'),
-       'Demo Tape A', 12, '/audio/demo-a.wav',
+       'Demo Tape A', 60, '/audio/demo-a.wav',
        '/art/highway.svg', 'direct-audio', 1, true
 union all
 select (select id from public.stations where slug = 'desi-world-radio'),
-       'Demo Tape C', 12, '/audio/demo-c.wav',
+       'Demo Tape C', 60, '/audio/demo-c.wav',
        '/art/cafe.svg', 'direct-audio', 1, true
 union all
 select (select id from public.stations where slug = 'rain-window-radio'),
-       'Demo Tape B', 12, '/audio/demo-b.wav',
+       'Demo Tape B', 60, '/audio/demo-b.wav',
        '/art/rainy-street.svg', 'direct-audio', 1, true
 union all
 select (select id from public.stations where slug = 'kaam-wala-radio'),
-       'Demo Tape C', 12, '/audio/demo-c.wav',
+       'Demo Tape C', 60, '/audio/demo-c.wav',
        '/art/workshop.svg', 'direct-audio', 1, true
 union all
 select (select id from public.stations where slug = 'bazaar-radio'),
-       'Demo Tape A', 12, '/audio/demo-a.wav',
+       'Demo Tape A', 60, '/audio/demo-a.wav',
        '/art/market.svg', 'direct-audio', 1, true
 union all
 select (select id from public.stations where slug = 'musafir'),
-       'Demo Tape A', 12, '/audio/demo-a.wav',
+       'Demo Tape A', 60, '/audio/demo-a.wav',
        '/art/highway.svg', 'direct-audio', 1, true
 union all
 select (select id from public.stations where slug = 'r-s-world'),
-       'Demo Tape C', 12, '/audio/demo-c.wav',
+       'Demo Tape C', 60, '/audio/demo-c.wav',
        '/art/cafe.svg', 'direct-audio', 1, true
 union all
 select (select id from public.stations where slug = 'rajasthani-folk'),
-       'Demo Tape B', 12, '/audio/demo-b.wav',
+       'Demo Tape B', 60, '/audio/demo-b.wav',
        '/art/desert.svg', 'direct-audio', 1, true
 union all
 select (select id from public.stations where slug = 'purane-naghme'),
-       'Demo Tape A', 12, '/audio/demo-a.wav',
+       'Demo Tape A', 60, '/audio/demo-a.wav',
        '/art/bus.svg', 'direct-audio', 1, true
 union all
 select (select id from public.stations where slug = 'chhath-puja-radio-bihar'),
-       'Demo Tape B', 12, '/audio/demo-b.wav',
+       'Demo Tape B', 60, '/audio/demo-b.wav',
        '/art/festival.svg', 'direct-audio', 1, true
 union all
 select (select id from public.stations where slug = 'holi-gulal-fm'),
-       'Demo Tape B', 12, '/audio/demo-b.wav',
+       'Demo Tape B', 60, '/audio/demo-b.wav',
        '/art/festival.svg', 'direct-audio', 1, true
 union all
 select (select id from public.stations where slug = 'munna-mistri'),
-       'Demo Tape C', 12, '/audio/demo-c.wav',
+       'Demo Tape C', 60, '/audio/demo-c.wav',
        '/art/workshop.svg', 'direct-audio', 1, true
 on conflict (station_id, title) do update set
   duration_sec = excluded.duration_sec, audio_url = excluded.audio_url,

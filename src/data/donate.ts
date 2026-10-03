@@ -2,12 +2,14 @@
  * The navbar DONATE slot.
  *
  * V1 ships the button only — no donation page, no payment flow, no form.
- * Point `href` at a real destination (UPI, GitHub Sponsors, Open Collective…)
- * whenever you have one; the validator flags the placeholder so it is never
- * forgotten before launch. `external: true` opens it in a new tab.
+ * The href stays empty until a real destination exists, so the navbar never
+ * ships a dead "#" link: paste the destination into `site_settings`
+ * (`donation_url`, set publicly visible) from /admin → Settings and the
+ * button enables itself live — or fill `href` here to hardcode it.
  */
 export const DONATE_LINK = {
   label: 'Donate',
-  href: '#',
+  /** Empty = not configured yet (renders as a disabled slot, never a dead link). */
+  href: '',
   external: true,
 } as const;

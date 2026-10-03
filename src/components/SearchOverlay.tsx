@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { Station } from '../types/station';
-import { CATEGORY_MAP } from '../data/categories';
+import { getCategory } from '../lib/live-catalogue';
+import { useLiveCatalogue } from '../hooks/useLiveCatalogue';
 import { searchStations } from '../lib/catalog';
 import { decideSource, isPlayableDecision } from '../lib/sourcePolicy';
 import { CloseIcon, SearchIcon, ShuffleIcon } from './Icons';
@@ -18,6 +19,8 @@ export function SearchOverlay({ open, onClose, onPick, onSurprise }: SearchOverl
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Subscribes to the live catalogue so results never lag behind admin edits.
+  useLiveCatalogue();
 
   useEffect(() => {
     if (open) {
@@ -27,10 +30,9 @@ export function SearchOverlay({ open, onClose, onPick, onSurprise }: SearchOverl
     }
   }, [open]);
 
-  const results = useMemo(() => {
-    if (!query.trim()) return [];
-    return searchStations(query);
-  }, [query]);
+  // No memo: the search runs over the (tiny) live snapshot, so an admin edit
+  // is reflected the moment this overlay re-renders.
+  const results = query.trim() ? searchStations(query) : [];
 
   if (!open) return null;
 
@@ -93,7 +95,7 @@ export function SearchOverlay({ open, onClose, onPick, onSurprise }: SearchOverl
           ) : (
             results.map((station, index) => {
               const decision = decideSource(station);
-              const category = CATEGORY_MAP[station.category];
+              const category = getCategory(station.category);
               return (
                 <button
                   key={station.id}

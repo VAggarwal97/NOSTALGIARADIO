@@ -23,7 +23,7 @@ export interface SeedSong {
 }
 
 /** Must stay in sync with `DURATION` in scripts/generate-demo-audio.mjs. */
-const DEMO_DURATION_SEC = 12;
+const DEMO_DURATION_SEC = 60;
 
 export const SONGS: SeedSong[] = STATIONS.filter(
   (station) => station.action === 'play' && station.audioUrl,

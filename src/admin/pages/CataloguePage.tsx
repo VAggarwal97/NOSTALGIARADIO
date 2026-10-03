@@ -270,6 +270,8 @@ export function CataloguePage({ sb }: Props): JSX.Element {
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  /** Live cascade counts for the open confirm — shown before anything dies. */
+  const [confirmCounts, setConfirmCounts] = useState<Record<string, number> | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   const categoryOptions = useMemo<Option[]>(
@@ -391,7 +393,7 @@ export function CataloguePage({ sb }: Props): JSX.Element {
       return;
     }
     const verb = editing.mode === 'new' ? 'Added' : 'Saved';
-    setMessage(`${verb} “${displayName(editing.values)}”.`);
+    setMessage(`${verb} “${displayName(editing.values)}” — the live site picks it up immediately.`);
     setEditing(null);
     await load();
   };
@@ -418,13 +420,62 @@ export function CataloguePage({ sb }: Props): JSX.Element {
 
   const deleteCopy = (row: AnyRow): string => {
     if (tab === 'categories') {
-      return `Delete “${(row as CategoryRow).name}”? Stations keep their rows but lose this chip.`;
+      const held = confirmCounts?.stations;
+      if (typeof held === 'number' && held > 0) {
+        return `Delete “${(row as CategoryRow).name}”? Blocked: ${held} station${held === 1 ? '' : 's'} still on this chip — give them a new chip (or deactivate them) first. A category delete would drop ${held === 1 ? 'it' : 'them'} out of the live rotation.`;
+      }
+      if (held === 0) {
+        return `Delete “${(row as CategoryRow).name}”? No stations remain on it.`;
+      }
+      return `Delete “${(row as CategoryRow).name}”? Counting the stations still on it…`;
     }
     if (tab === 'stations') {
-      return `Delete “${(row as StationRow).title}”? Its songs are removed and station votes go with it.`;
+      if (confirmCounts) {
+        const { songs = 0, votes = 0, events = 0, requests = 0 } = confirmCounts;
+        return `Delete “${(row as StationRow).title}”? Cascade: ${songs} song${songs === 1 ? '' : 's'} deleted · ${votes} vote${votes === 1 ? '' : 's'} · ${events} station event${events === 1 ? '' : 's'} · ${requests} request${requests === 1 ? '' : 's'} un-assigned.`;
+      }
+      return `Delete “${(row as StationRow).title}”? Counting what it cascades to…`;
     }
-    return `Delete “${(row as SongRow).title}”?`;
+    return `Delete “${(row as SongRow).title}”? It leaves that station's programme.`;
   };
+
+  // While a delete confirm is open, fetch the real cascade counts — the blast
+  // radius is shown as data, never as a surprise after the fact.
+  useEffect(() => {
+    if (!confirmId) {
+      setConfirmCounts(null);
+      return undefined;
+    }
+    let cancelled = false;
+    const countOf = async (table: string, column: string, id: string): Promise<number> => {
+      const { count } = await sb
+        .from(table)
+        .select('id', { count: 'exact', head: true })
+        .eq(column, id);
+      return count ?? 0;
+    };
+    void (async () => {
+      if (tab === 'categories') {
+        const held = await countOf('stations', 'category_id', confirmId);
+        if (!cancelled) setConfirmCounts({ stations: held });
+        return;
+      }
+      if (tab === 'stations') {
+        const [songs, votes, events, requests] = await Promise.all([
+          countOf('songs', 'station_id', confirmId),
+          countOf('votes', 'station_id', confirmId),
+          countOf('station_events', 'station_id', confirmId),
+          countOf('suggestions', 'station_id', confirmId),
+        ]);
+        if (!cancelled) setConfirmCounts({ songs, votes, events, requests });
+        return;
+      }
+      if (!cancelled) setConfirmCounts({});
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [confirmId, tab, sb]);
 
   if (error && !rows) return <ErrorPanel message={error} onRetry={() => void load()} />;
   if (!rows) return <LoadingRow label={`Loading ${TAB_LABELS[tab].toLowerCase()}…`} />;
@@ -645,7 +696,9 @@ export function CataloguePage({ sb }: Props): JSX.Element {
                               setError(pageErrorMessage(toggleError));
                               return;
                             }
-                            setMessage(`“${label}” is now ${active ? 'active' : 'inactive'}.`);
+                            setMessage(
+                              `“${label}” is now ${active ? 'active' : 'inactive'} — the live site follows automatically.`,
+                            );
                             await load();
                           })();
                         }}
@@ -658,7 +711,10 @@ export function CataloguePage({ sb }: Props): JSX.Element {
                           <button
                             type="button"
                             className="admin-danger"
-                            disabled={busy}
+                            disabled={
+                              busy ||
+                              (tab === 'categories' && (confirmCounts?.stations ?? 0) > 0)
+                            }
                             onClick={() => void removeRow(row)}
                           >
                             {busyRow ? 'Deleting…' : 'Delete'}

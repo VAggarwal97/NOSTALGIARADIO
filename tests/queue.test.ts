@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 import { STATIONS } from '../src/data/stations';
 import type { SongRequest } from '../src/lib/request-api';
@@ -211,14 +213,13 @@ describe('session backdrop (one draw per page load)', () => {
 describe('nostalgia-radio backdrop inventory', () => {
   const station = STATIONS.find((item) => item.id === 'nostalgia-radio');
 
-  it('ships the seven supplied stage photos as https URLs', () => {
+  it('ships the seven supplied stage photos, self-hosted in /public', () => {
     expect(station?.backdrops).toHaveLength(7);
-    for (const url of station?.backdrops ?? []) {
-      expect(url).toMatch(/^https:\/\/i\.pinimg\.com\/1200x\/[a-z0-9/]+\.jpg$/);
-    }
-    expect(station?.backdrops?.[0]).toBe(
-      'https://i.pinimg.com/1200x/8b/82/8f/8b828f5ce63e57c7c33a759f819544cd.jpg',
-    );
+    (station?.backdrops ?? []).forEach((url, index) => {
+      expect(url).toBe(`/img/backdrops/stage-${index + 1}.jpg`);
+      const file = fileURLToPath(new URL(`../public${url}`, import.meta.url));
+      expect(existsSync(file)).toBe(true);
+    });
   });
 
   it('keeps the fixed artwork as identity alongside the stage photos', () => {

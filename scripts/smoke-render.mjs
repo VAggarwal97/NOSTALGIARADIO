@@ -123,7 +123,7 @@ try {
   const stageChecks = [
     [
       'draws a real hero stage photo',
-      /class="hero-art"\s+src="https:\/\/i\.pinimg\.com\/1200x\//.test(stageHtml),
+      /class="hero-art"\s+src="\/img\/backdrops\//.test(stageHtml),
     ],
     [
       'stage photo carries no invented alt text',

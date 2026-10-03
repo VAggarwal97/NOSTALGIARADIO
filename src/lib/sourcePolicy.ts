@@ -68,13 +68,15 @@ const YOUTUBE_VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 const SPOTIFY_TRACK_ID = /^[A-Za-z0-9]{22}$/;
 
 /**
- * The community queue's playback decision: one request = one official embed —
- * a YouTube video or a Spotify track, driven through the provider's own API.
- * Anything the parsers would not have accepted is refused here, so a hand-
- * edited row can never reach an engine.
+ * The playback decision for one community-track pointer: an official provider
+ * embed when the row names a provider id, direct audio otherwise. Anything the
+ * parsers reject never reaches an engine.
  */
-export function embedSourceForRequest(request: SongRequest): EmbedSource | null {
-  const { provider, id, url } = request.song;
+export function embedSourceForTrack(
+  provider: 'youtube' | 'spotify',
+  id: string,
+  url: string,
+): EmbedSource | null {
   if (!isSafeUrl(url)) return null;
   if (provider === 'youtube') {
     return YOUTUBE_VIDEO_ID.test(id) ? { provider, playlistId: id, entity: 'video', url } : null;
@@ -83,6 +85,18 @@ export function embedSourceForRequest(request: SongRequest): EmbedSource | null 
     return SPOTIFY_TRACK_ID.test(id) ? { provider, playlistId: id, entity: 'track', url } : null;
   }
   return null;
+}
+
+/**
+ * The community queue's playback decision: one request = one official embed —
+ * a YouTube video or a Spotify track, driven through the provider's own API.
+ * Anything the parsers would not have accepted is refused here, so a hand-
+ * edited row can never reach an engine.
+ */
+export function embedSourceForRequest(request: SongRequest): EmbedSource | null {
+  const { provider, id, url } = request.song;
+  if (provider !== 'youtube' && provider !== 'spotify') return null;
+  return embedSourceForTrack(provider, id, url);
 }
 
 /** True when the app may play this station itself: local audio or provider embed. */

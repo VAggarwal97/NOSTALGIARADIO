@@ -122,7 +122,7 @@ export function SettingsPage({ sb }: Props): JSX.Element {
       setEditError({ key: row.setting_key, text: pageErrorMessage(updateError) });
       return;
     }
-    setMessage(`Saved “${row.setting_key}”.`);
+    setMessage(`Saved “${row.setting_key}” — public settings apply to the live site automatically.`);
     await load();
   };
 
@@ -136,7 +136,7 @@ export function SettingsPage({ sb }: Props): JSX.Element {
       setEditError({ key, text: pageErrorMessage(deleteError) });
       return;
     }
-    setMessage(`Deleted “${key}”.`);
+    setMessage(`Deleted “${key}” — the site drops it automatically.`);
     await load();
   };
 
@@ -170,7 +170,7 @@ export function SettingsPage({ sb }: Props): JSX.Element {
       return;
     }
     setAdding(null);
-    setMessage(`Added “${key}”.`);
+    setMessage(`Added “${key}” — public settings apply to the live site automatically.`);
     await load();
   };
 

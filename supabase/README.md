@@ -24,7 +24,7 @@ Browser (publishable key only)          Audio bytes
 
 ## 1. Applying the migrations
 
-Run the eight files in `supabase/migrations/` **in this order**. Either way:
+Run the ten files in `supabase/migrations/` **in this order**. Either way:
 
 **SQL Editor (simplest):** Dashboard → SQL Editor → New query → paste each file
 whole → Run. Repeat for the next file.
@@ -42,15 +42,17 @@ whole → Run. Repeat for the next file.
 | 6 | `20260930000006_definer_rate_limits.sql` | Rate-limit triggers as `security definer` — without it every public insert fails with `42501` (the counters read `visitor_token`, which anon may never select) |
 | 7 | `20261002000007_song_likes.sql` | `song_likes` + `song_like_counts` (likes counted, never stored), insert-only grants for the browser, visible-requests policy, `enforce_like_rate()` as definer from day one |
 | 8 | `20261002000008_open_panel.sql` | **No-login control room**: retires `admin_users`/`is_admin()`/`*_admin_all`, opens the panel's tables to anon+authenticated, grants token-free reads + panel DML, rewrites the audit trigger to log anon actions (see §9) |
+| 9 | `20260930000009_broadcasts.sql` | Shared on-air channel: `broadcasts` (one row per category), `broadcast_state()`/`advance_broadcast()`/`report_broadcast_duration()` as definer, `TRACK_CHANGED` realtime (see §11) |
+| 10 | `20261003000001_realtime_catalogue.sql` | Publishes `categories`, `stations`, `songs`, `site_settings` to `supabase_realtime` — the runtime hydration feed (see §12) |
 
-All eight are **idempotent** — re-running any of them is safe.
+All ten are **idempotent** — re-running any of them is safe.
 
 **Verify afterwards** (SQL Editor):
 
 ```sql
 select count(*) from public.categories;  -- 8
 select count(*) from public.stations;    -- 37
-select count(*) from public.songs;       -- 0 (by design, for later phases)
+select count(*) from public.songs;       -- 15 (demo programme rows, seeded with the stations)
 select relrowsecurity from pg_class where relname in
   ('categories','stations','songs','suggestions','votes','station_events',
    'admin_activity_logs','site_settings','song_likes');
@@ -256,17 +258,14 @@ side — the client's opinion of a song's status is never trusted.
 
 ## 8. Deliberately deferred (next rounds, with this foundation in place)
 
-1. **~~React wiring~~** — shipped; see §10. Still deferred inside it:
-   **categories/stations fetch from the database** — the public catalogue is
-   still read from the bundled `STATIONS` data (identical content), because
-   making it async mid-round would touch every consumer. The tables and admin
-   policies exist; it moves to the content-editors round together with
-   station CRUD.
+1. **~~React wiring~~** — shipped; see §10. The *site-side catalogue fetch*
+   shipped too: runtime hydration over realtime (migration 10, §12) — the
+   public gallery now follows admin edits live, with the bundled data as the
+   SSR/fallback baseline.
 2. **~~Admin content editors~~** — shipped: the Catalogue (categories, stations,
    songs CRUD) and Settings (site_settings CRUD) screens live in `/admin`
-   (§9). Still deferred inside this round: audio testing and the *site-side*
-   catalogue fetch (item 1) — until that ships, the public gallery renders
-   from the bundled data while panel edits persist to the database.
+   (§9), and their edits reach the public site through hydration (§12).
+   Still deferred inside this round: audio testing.
 3. **Edge Functions** — the rate limits and validations above already run
    server-side for every path; nothing has justified a first function yet. Any
    future one ships written, deployed and tested together with its client, not
@@ -375,7 +374,7 @@ store).
 /catalogue   categories · stations · songs CRUD          ✅
 /settings    site_settings CRUD                          ✅
 /activity    trigger-written audit log                   ✅
-audio test · analytics views · site-side catalogue fetch → later (§8)
+audio test · analytics views → later (§8)
 ```
 
 The public site never links here (`href="/admin"` appears nowhere — pinned by
@@ -502,3 +501,73 @@ stream from where they already live: local file, YouTube, Spotify).
 - `tests/broadcast.test.ts` (clock/votes math), `tests/broadcastMigration.test.ts`
   (this section's fence) and `tests/demoAudioDurations.test.ts` (wav bytes vs
   the seed's claimed length) must stay green.
+
+---
+
+## 12. Runtime catalogue, presence & auto-play (migration 10)
+
+The static site now *reads* the database at runtime — the last gap ISSUES.md
+called "admin edits never reach the website".
+
+### Migration 10 (`20261003000001_realtime_catalogue.sql`)
+
+Adds `categories`, `stations`, `songs` and `site_settings` to the
+`supabase_realtime` publication (idempotent; skips views). Membership after
+it runs:
+
+```sql
+select tablename from pg_publication_tables
+ where pubname = 'supabase_realtime' and schemaname = 'public' order by 1;
+-- broadcasts, categories, site_settings, songs, stations, suggestions (6)
+```
+
+### How hydration works (`src/lib/live-catalogue.ts`)
+
+- Bundled `src/data/*` = SSR/initial fallback; a successful fetch makes the
+  database authoritative (a null column keeps the bundled value; bundled rows
+  absent from a successful fetch are dropped; non-DB presentation fields —
+  `titleLines`, `secondaryCategories`, `externalLinks`, null `backdrops` —
+  are preserved from the base).
+- An **empty** station/category fetch counts as a *failed* fetch — the site
+  never blanks.
+- Realtime (one `catalogue-live` channel, migration 10) triggers refetches;
+  window focus/visibility are the `wss://` fallback; identical row JSON is a
+  no-op (no version churn).
+- Only the eight known category slugs hydrate (deliberate chip limit).
+- The public side reads `site_settings` filtered to
+  `publicly_visible = true` (migration 8's open policy can't enforce that —
+  the client will not consume what the flag hides).
+- Settings that consume it: `site_name` (masthead + default document title),
+  `site_description`/`seo_description` (meta description), `seo_title`
+  (document title), `donation_url` (Donate; `#` rejected, empty ⇒ disabled
+  slot), `maintenance_mode` (live gate: public shell down, `/admin` stays up).
+
+### Programme + auto-play (the "select a station, it plays" feature)
+
+- `loadProgramme(stationId)` lazily fetches that station's mapped songs
+  (`songs` by `station_id`, active, ordered). **A failed fetch is never
+  cached** — at boot it races catalogue hydration (the slug→id map may not
+  exist yet), so failures return the bundled rows and the next selection or
+  catalogue edit retries; a successful empty list means the admin unmapped
+  everything (the station loops its own source).
+- Selection *is* the gesture: category chips, search picks, "Surprise me"
+  and the next/prev transport start playback from that one press; a plain
+  page load with no gesture stays honestly paused (browser policy honored).
+- At a boundary the local player walks the programme (wrapping once, skipping
+  unplayable rows) before falling back to the station source; previews never
+  `markPlayed`. Proven end-to-end in headless Chrome (7/7 checks: no-gesture
+  load silent, search pick plays, a DB-only row appears as the next song).
+
+### Presence (listener count)
+
+- `src/lib/supabase-presence-store.ts` joins the global `presence:listeners`
+  Supabase presence channel (3 s leave-grace) and falls back to the local
+  `BroadcastChannel` tally when `wss://` is unreachable. `usePresence` never
+  blocks paint (null until answered); `SessionTally`/`createLocalPresence`
+  remain for tests.
+
+Client entry points: `src/hooks/useLiveCatalogue.ts` (snapshot subscription),
+`src/lib/supabase-catalogue-store.ts` + `supabase-presence-store.ts`
+(dynamic imports — the Supabase chunks stay out of the public bundle).
+Tests: `tests/liveCatalogue.test.ts` (26) + the responsive audit and
+`verify-autoplay.mjs` feature run.

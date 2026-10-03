@@ -1,5 +1,5 @@
 import type { Station } from '../types/station';
-import { CATEGORY_MAP } from '../data/categories';
+import { getCategory } from '../lib/live-catalogue';
 import { classifyUrl } from '../lib/urlSafety';
 import { decideSource, labelForDecision } from '../lib/sourcePolicy';
 import { CloseIcon, ExternalIcon, ShareIcon } from './Icons';
@@ -21,7 +21,7 @@ export function StationInfoModal({
   if (!station) return null;
 
   const decision = decideSource(station);
-  const category = CATEGORY_MAP[station.category];
+  const category = getCategory(station.category);
   const urlSafety = classifyUrl(station.url);
   const external = station.externalLinks ?? [];
 

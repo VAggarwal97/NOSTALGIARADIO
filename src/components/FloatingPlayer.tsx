@@ -50,6 +50,8 @@ interface FloatingPlayerProps {
     artwork: string | null;
     votes: number | null;
   }> | null;
+  /** Heading above `upcoming` — votes ordering live, station programme local. */
+  upcomingLabel?: string;
   /** Back-to-live handler; null while already live (the button hides). */
   onGoLive?: (() => void) | null;
   onToggleExpand: () => void;
@@ -106,6 +108,7 @@ export function FloatingPlayer({
   liveScope = false,
   artwork = null,
   upcoming = null,
+  upcomingLabel = 'Up next on air · by votes',
   onGoLive = null,
   onToggleExpand,
   onToggleMinimize,
@@ -355,7 +358,7 @@ export function FloatingPlayer({
           <div className="queue-pop" role="group" aria-label="Queue">
             {upcoming && upcoming.length > 0 ? (
               <>
-                <div className="queue-head queue-head--live">Up next on air · by votes</div>
+                <div className="queue-head queue-head--live">{upcomingLabel}</div>
                 {upcoming.map((item) => (
                   <div key={item.key} className="queue-item queue-item--live">
                     {item.artwork ? (

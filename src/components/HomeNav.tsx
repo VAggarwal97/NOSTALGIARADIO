@@ -1,6 +1,7 @@
 import type { MouseEvent } from 'react';
 
 import { DONATE_LINK } from '../data/donate';
+import { getSetting } from '../lib/live-catalogue';
 import { homeHref, suggestHref, type RouteName } from '../lib/routes';
 
 type HomeNavProps = {
@@ -17,7 +18,7 @@ const EXTERNAL_LINKS = [
   { label: 'YouTube Music', href: 'https://music.youtube.com/', host: 'music.youtube.com' },
 ] as const;
 
-const isExternalDonate = /^https?:\/\//i.test(DONATE_LINK.href);
+const isExternalDonateUrl = (url: string): boolean => /^https?:\/\//i.test(url);
 
 /**
  * A film masthead, not an app toolbar: brand on the left, quiet text
@@ -36,11 +37,26 @@ export function HomeNav({ compact, route, onNavigate, onHelp, onSearch }: HomeNa
     onNavigate(path);
   };
 
+  // Donation destination: the runtime `donation_url` setting (set from
+  // /admin → Settings) wins; otherwise the bundled href when it is real.
+  // Until one exists the slot renders disabled — never a dead "#".
+  const runtimeDonate = getSetting('donation_url');
+  const donateHref = runtimeDonate && isExternalDonateUrl(runtimeDonate)
+    ? runtimeDonate
+    : isExternalDonateUrl(DONATE_LINK.href)
+      ? DONATE_LINK.href
+      : '';
+  const hasDonate = donateHref !== '';
+
+  // The masthead follows the live `site_name` setting — same story as the
+  // document title — with the shipped brand as the honest default.
+  const brandName = getSetting('site_name')?.trim() || 'Nostalgia Radio';
+
   return (
     <header className="topnav" data-compact={compact}>
       <div className="topnav-inner wrap">
-        <a className="brand" href={homeHref()} aria-label="Nostalgia Radio — home">
-          <span className="brand-name">Nostalgia Radio</span>
+        <a className="brand" href={homeHref()} aria-label={`${brandName} — home`}>
+          <span className="brand-name">{brandName}</span>
         </a>
 
         <nav className="nav-links" aria-label="Radio utilities">
@@ -68,14 +84,20 @@ export function HomeNav({ compact, route, onNavigate, onHelp, onSearch }: HomeNa
             </a>
           ))}
 
-          {/* Placeholder destination — swap DONATE_LINK.href in src/data/donate.ts. */}
-          <a
-            className="nav-link nav-link-donate"
-            href={DONATE_LINK.href}
-            {...(isExternalDonate ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-          >
-            Donate
-          </a>
+          {/* Donation slot — enabled only when a real destination exists. */}
+          {hasDonate ? (
+            <a
+              className="nav-link nav-link-donate"
+              href={donateHref}
+              {...(isExternalDonateUrl(donateHref) ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+            >
+              {DONATE_LINK.label}
+            </a>
+          ) : (
+            <span className="nav-link nav-link-donate" aria-disabled="true" title="Donation link not configured yet">
+              {DONATE_LINK.label}
+            </span>
+          )}
 
           <button type="button" className="nav-link nav-link-quiet" onClick={onHelp}>
             ?

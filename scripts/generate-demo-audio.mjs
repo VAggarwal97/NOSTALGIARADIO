@@ -13,7 +13,7 @@ const ROOT = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..'
 const OUT_DIR = path.join(ROOT, 'public', 'audio');
 
 const SAMPLE_RATE = 22050;
-const DURATION = 12; // seconds per sample
+const DURATION = 60; // seconds per sample — matches DEMO_DURATION_SEC in src/data/songs.ts
 const FREQUENCIES = 3;
 
 // Deterministic pseudo-random so rebuilds are byte-identical.

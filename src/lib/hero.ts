@@ -1,4 +1,4 @@
-import { CATEGORY_MAP } from '../data/categories';
+import { getCategory } from './live-catalogue';
 import type { Station } from '../types/station';
 
 export const DEFAULT_ACCENT = '#f05a45';
@@ -17,7 +17,7 @@ export function heroTitle(station: Station): [string, string] {
 
 /** `TRAVEL · ROAD · PEOPLE · MEMORIES` — category, then the station's own words. */
 export function heroEyebrow(station: Station): string {
-  const category = CATEGORY_MAP[station.category];
+  const category = getCategory(station.category);
   const words = (station.tags ?? []).slice(0, 3);
   return [category?.label ?? station.category, ...words].join(' · ');
 }
@@ -30,5 +30,5 @@ export function heroMeta(station: Station): string[] {
 }
 
 export function stationAccent(station: Station): string {
-  return station.accent ?? CATEGORY_MAP[station.category]?.accent ?? DEFAULT_ACCENT;
+  return station.accent ?? getCategory(station.category)?.accent ?? DEFAULT_ACCENT;
 }

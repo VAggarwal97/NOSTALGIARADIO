@@ -151,7 +151,11 @@ function validate(CATEGORIES, STATIONS, SONGS) {
     if (station.backdrops) {
       if (station.backdrops.length > 12) fail(where, 'more than 12 backdrops');
       for (const backdrop of station.backdrops) {
-        if (!HTTPS.test(backdrop)) fail(where, `backdrop '${backdrop}' must be https`);
+        // Self-hosted /img paths ship alongside real https URLs (issue 6:
+        // no third-party hotlinks for the hero stage).
+        if (!HTTPS.test(backdrop) && !/^\/[^\s'"`<>]+$/.test(backdrop)) {
+          fail(where, `backdrop '${backdrop}' must be https or a local /path`);
+        }
       }
     }
     stats.maxDescription = Math.max(stats.maxDescription, [...(station.description ?? '')].length);

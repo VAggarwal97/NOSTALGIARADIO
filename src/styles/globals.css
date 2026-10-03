@@ -2320,6 +2320,25 @@ img {
   }
 }
 
+/* ── Maintenance gate (site_settings → maintenance_mode) ─────────────────── */
+
+.maintenance {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-6);
+}
+
+.maintenance-card {
+  max-width: 34rem;
+  display: grid;
+  gap: var(--space-3);
+  justify-items: center;
+  text-align: center;
+  padding: 0 var(--space-4);
+}
+
 /* ── Reduced motion ─────────────────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {

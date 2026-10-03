@@ -1,8 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentType, CSSProperties } from 'react';
 
-import { CATEGORY_MAP, isCategoryId } from '../data/categories';
-import { STATIONS } from '../data/stations';
+import { isCategoryId } from '../data/categories';
 import type { CategoryId, Station } from '../types/station';
 
 import { findStation, randomStation, stationsForCategory } from '../lib/catalog';
@@ -13,13 +12,18 @@ import {
   navigateSource,
 } from '../lib/sourcePolicy';
 import {
-  fallsBackToStations,
-  pickNextRequest,
-  requestStationId,
-  retireReason,
-} from '../lib/queue';
+  bundledProgramme,
+  decisionForProgrammeSong,
+  getCatalogue,
+  getCategory,
+  getSetting,
+  loadProgramme,
+  pickProgrammeNext,
+  programmeIndexFor,
+} from '../lib/live-catalogue';
+import type { ProgrammeSong } from '../lib/live-catalogue';
+import { requestStationId } from '../lib/queue';
 import type { QueueOrigin } from '../lib/queue';
-import { getRequestApi } from '../lib/request-api';
 import type { SongRequest } from '../lib/request-api';
 import { shareStation } from '../lib/share';
 import { stationAccent } from '../lib/hero';
@@ -27,6 +31,7 @@ import { stationAccent } from '../lib/hero';
 import { useRadioPlayer } from '../hooks/useRadioPlayer';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { usePresence } from '../hooks/usePresence';
+import { useLiveCatalogue } from '../hooks/useLiveCatalogue';
 import { hasVoted } from '../lib/community-identity';
 import { communityPick } from '../lib/community-pick';
 import { getPlayerManager } from '../services/playerManager';
@@ -90,8 +95,8 @@ const initialState = (): {
   const station =
     linked ??
     (stored?.stationId ? findStation(stored.stationId) : null) ??
-    findStation(CATEGORY_MAP[category]?.flagship) ??
-    STATIONS[0] ??
+    findStation(getCategory(category)?.flagship) ??
+    getCatalogue().stations[0] ??
     null;
   const scope: BroadcastScope = linked
     ? 'local'
@@ -146,13 +151,36 @@ export default function App() {
   // describe the request instead of pretending the station is playing.
   const [activeRequest, setActiveRequestState] = useState<SongRequest | null>(null);
   const activeRequestRef = useRef<SongRequest | null>(null);
-  /** Requests whose source failed this session — skipped, never retried in-page. */
-  const skipRef = useRef<Set<string>>(new Set());
-  const failuresRef = useRef(0);
   const updateActiveRequest = useCallback((request: SongRequest | null) => {
     activeRequestRef.current = request;
     setActiveRequestState(request);
   }, []);
+
+  // The station's programme — the songs mapped to it (seed rows first, the
+  // live admin catalogue after hydration). It runs by itself: one selection,
+  // continuous audio, no manual effort.
+  const [programme, setProgramme] = useState<ProgrammeSong[]>([]);
+  const programmeRef = useRef<ProgrammeSong[]>(programme);
+  programmeRef.current = programme;
+  /** Which mapped song the local player holds; null = the station's own source. */
+  const [currentSong, setCurrentSong] = useState<ProgrammeSong | null>(null);
+  const currentSongRef = useRef<ProgrammeSong | null>(null);
+  currentSongRef.current = currentSong;
+  /** What the single global player holds while this device is tuned locally. */
+  const loadedLocalRef = useRef<{ kind: 'station' | 'song' | 'preview'; stationId: string }>({
+    kind: 'station',
+    stationId: '',
+  });
+  /** Song position a request preview interrupted — resumed when it ends. */
+  const previewResumeRef = useRef<ProgrammeSong | null>(null);
+  /** Consecutive local playback failures — three stop the loop honestly. */
+  const localErrorsRef = useRef(0);
+  /** De-duplicates the local error effect per failed source. */
+  const localErrorSeenRef = useRef<string | null>(null);
+  /** A category chip asked for autoplay: the new channel/flagship starts itself. */
+  const autoplayOnJoinRef = useRef(false);
+  /** startStation reached from goTo's autoplay branch (goTo is defined first). */
+  const startStationRef = useRef<(station: Station) => Promise<void>>(async () => {});
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
@@ -168,6 +196,10 @@ export default function App() {
 
   // Approximate live sessions — decorative, resolved after first paint.
   const listeners = usePresence();
+
+  // The live catalogue (admin edits converge here) — bumping `version` re-
+  // renders the whole shell: hero, gallery, search, player, nav.
+  const catalogue = useLiveCatalogue();
 
   // The header tightens after the first scroll — same shell, smaller footprint.
   useEffect(() => {
@@ -274,7 +306,18 @@ export default function App() {
     advanceRef.current(origin);
   };
 
-  const pool = useMemo(() => stationsForCategory(category), [category]);
+  const pool = useMemo(() => {
+    void catalogue.version; // re-derive when the live catalogue hydrates/edits
+    return stationsForCategory(category);
+  }, [category, catalogue.version]);
+
+  // After hydration the selected Station object may have been updated (an
+  // admin edit) or dropped (deactivated) — re-resolve it from the snapshot.
+  useEffect(() => {
+    if (!selected) return;
+    const fresh = findStation(selected.id);
+    if (fresh && fresh !== selected) setSelected(fresh);
+  }, [selected, catalogue.version]);
 
   const goTo = useCallback(
     (station: Station, autoplay = false) => {
@@ -293,8 +336,8 @@ export default function App() {
       const decision = decideSource(station);
       const playable = isPlayableDecision(decision);
       if (autoplay && playable) {
-        playerRef.current.load(station.id, decision);
-        void playerRef.current.play();
+        // Selecting a station starts it: the press itself is the gesture.
+        void startStationRef.current(station);
       } else if (activeRequestRef.current) {
         // A community request was on air: replace it with the station — cued
         // paused when nothing should autoplay, stopped when this source can't
@@ -333,13 +376,71 @@ export default function App() {
         navigateSource(station);
         return;
       }
+      // Re-selecting the station already loaded keeps its position; a new
+      // station starts from its own source and programme head.
       if (playerRef.current.stationId !== station.id) {
+        loadedLocalRef.current = { kind: 'station', stationId: station.id };
+        setCurrentSong(null);
+        currentSongRef.current = null;
+        localErrorsRef.current = 0;
         playerRef.current.load(station.id, decision);
+        // Instant programme from the bundled rows; the effect below upgrades
+        // it to the live rows (and keeps it fresh across admin edits).
+        setProgramme(bundledProgramme(station.id));
       }
-      await playerRef.current.play();
+      try {
+        await playerRef.current.play();
+      } catch {
+        // The browser wants a gesture first — honest paused state, never a
+        // fake "playing" indicator.
+      }
+      previewResumeRef.current = null;
     },
     [notify, updateActiveRequest, goToRequest, retuneLocal],
   );
+  startStationRef.current = startStation;
+
+  // The selected station's programme: this station's bundled rows instantly,
+  // then the live admin rows — refetched whenever the catalogue itself
+  // changes. The live-flag guards a slow answer from overwriting a newer
+  // station's list.
+  useEffect(() => {
+    if (!selected) return;
+    const id = selected.id;
+    setProgramme(bundledProgramme(id));
+    let live = true;
+    void loadProgramme(id).then((songs) => {
+      if (live) setProgramme(songs);
+    });
+    return () => {
+      live = false;
+    };
+  }, [selected, catalogue.version]);
+
+  // Public site_settings are live: title and meta description follow them the
+  // moment hydration (or a realtime edit) brings them in. index.html keeps the
+  // honest static defaults for anything the admin has not set.
+  const docDefaults = useRef<{ title: string; description: string } | null>(null);
+  useEffect(() => {
+    docDefaults.current ??= {
+      title: document.title,
+      description: document.querySelector('meta[name="description"]')?.getAttribute('content') ?? '',
+    };
+    const base = docDefaults.current;
+    const name = getSetting('site_name')?.trim();
+    const seoTitle = getSetting('seo_title')?.trim();
+    const description =
+      getSetting('seo_description')?.trim() || getSetting('site_description')?.trim();
+    document.title =
+      seoTitle || (name ? `${name} — Old roads, local radios, songs that never left` : base.title);
+    let meta = document.querySelector('meta[name="description"]');
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.setAttribute('name', 'description');
+      document.head.appendChild(meta);
+    }
+    meta.setAttribute('content', description || base.description);
+  }, [catalogue.version]);
 
   /**
    * Joining the live channel: load what is on air and seek to the shared
@@ -434,10 +535,13 @@ export default function App() {
       loadedChannelRef.current = null;
       loadedStartedRef.current = null;
       setLoadedChannel(null);
-      const flagship = findStation(CATEGORY_MAP[id]?.flagship);
+      const flagship = findStation(getCategory(id)?.flagship);
       if (!flagship) return;
       // Hero identity only — from here the channel owns the audio.
       goTo(flagship, false);
+      // Pressing a chip is a gesture: the new channel (or the flagship when
+      // the channel cannot answer) starts itself — no second press needed.
+      autoplayOnJoinRef.current = true;
     },
     [goTo],
   );
@@ -453,7 +557,7 @@ export default function App() {
   const step = useCallback(
     (direction: 1 | -1) => {
       retuneLocal(); // stepping stations leaves the live channel on purpose
-      const list = pool.length > 0 ? pool : STATIONS;
+      const list = pool.length > 0 ? pool : getCatalogue().stations;
       const index = selected ? list.findIndex((s) => s.id === selected.id) : -1;
       if (list.length === 0) return;
       const nextIndex =
@@ -464,8 +568,9 @@ export default function App() {
           : (index + direction + list.length) % list.length;
       const target = list[nextIndex];
       if (!target) return;
-      const shouldAutoplay = playerRef.current.status === 'playing';
-      goTo(target, shouldAutoplay);
+      // Selecting a station starts it — the press itself is the gesture
+      // (browsers allow playback right after a user interaction).
+      goTo(target, true);
     },
     [pool, selected, goTo, retuneLocal],
   );
@@ -477,6 +582,9 @@ export default function App() {
       retuneLocal(); // a preview is this device's own decision, not the channel's
       const source = embedSourceForRequest(request);
       if (!source) return false;
+      const previousLocal = loadedLocalRef.current;
+      previewResumeRef.current = currentSongRef.current;
+      loadedLocalRef.current = { kind: 'preview', stationId: requestStationId(request.id) };
       updateActiveRequest(request);
       try {
         playerRef.current.load(requestStationId(request.id), { kind: 'embed', source });
@@ -485,6 +593,8 @@ export default function App() {
         // Engine refused (blocked autoplay, dead iframe…) — it never aired, so it
         // stays open and the pill returns to the station instead of a stuck title.
         updateActiveRequest(null);
+        loadedLocalRef.current = previousLocal;
+        previewResumeRef.current = null;
         return false;
       }
       setAnnouncement(`Now playing ${request.title} by ${request.artist} — community request.`);
@@ -505,41 +615,145 @@ export default function App() {
   );
 
   /**
-   * What airs at a boundary — a sample track ended, a request finished, or the
-   * listener pressed Next. The highest-voted open request goes first; when the
-   * queue is exhausted the station rotation resumes. The current song is never
-   * interrupted: this only ever runs from a boundary, never mid-track.
+   * The station's own source, loaded fresh: the loop after a single-sample
+   * station, the hand-back after a preview, the playlist restart at rest.
    */
-  const advanceProgram = useCallback(
+  const reloadStationSource = useCallback(async (station: Station): Promise<boolean> => {
+    const decision = decideSource(station);
+    if (!isPlayableDecision(decision)) return false;
+    loadedLocalRef.current = { kind: 'station', stationId: station.id };
+    setCurrentSong(null);
+    currentSongRef.current = null;
+    const api = playerRef.current;
+    api.load(station.id, decision);
+    try {
+      await api.play();
+    } catch {
+      /* no gesture / blocked autoplay — honest paused state */
+    }
+    return true;
+  }, []);
+
+  /** One mapped song, loaded exactly like any other local source. */
+  const playProgrammeSong = useCallback(
+    async (station: Station, song: ProgrammeSong): Promise<boolean> => {
+      const decision = decisionForProgrammeSong(song);
+      if (!decision) return false; // no playable pointer → the walker skips it
+      loadedLocalRef.current = { kind: 'song', stationId: station.id };
+      setCurrentSong(song);
+      currentSongRef.current = song;
+      const api = playerRef.current;
+      api.load(station.id, decision);
+      try {
+        await api.play();
+      } catch {
+        return false;
+      }
+      setAnnouncement(
+        `Now playing ${song.title}${song.artist ? ` by ${song.artist}` : ''} — ${station.name}.`,
+      );
+      return true;
+    },
+    [],
+  );
+
+  /**
+   * What airs at a local boundary: the station's mapped programme runs by
+   * itself — one selection, continuous audio, no manual effort and no silent
+   * station-hopping. A request preview hands the air back (previews never
+   * retire a community request — the channel's scheduler owns that). A
+   * provider playlist advances videos on its own; we only restart it when it
+   * truly rests at its end.
+   */
+  const advanceLocal = useCallback(
     async (origin: QueueOrigin) => {
-      const api = getRequestApi();
-      const current = activeRequestRef.current;
-      if (current && retireReason(origin)) {
-        try {
-          await api.markPlayed(current.id, current); // it aired → history; it never replays
-        } catch {
-          // History failed — the request simply stays open for a later rotation.
+      if (activeRequestRef.current) updateActiveRequest(null);
+      const station = selected;
+      if (!station) return;
+      const loaded = loadedLocalRef.current;
+
+      // Preview over → continue the station's programme where it stood.
+      if (loaded.kind === 'preview') {
+        const songs = programmeRef.current;
+        const base = programmeIndexFor(songs, previewResumeRef.current, station.audioUrl ?? null);
+        previewResumeRef.current = null;
+        const next = pickProgrammeNext(songs, base, 1);
+        if (next && (await playProgrammeSong(station, next))) return;
+        await reloadStationSource(station);
+        return;
+      }
+
+      // The provider reported a boundary. A new video means it is already
+      // playing the next one; a genuine rest restarts the playlist so the
+      // station never goes silent.
+      if (loaded.kind === 'station' && origin === 'station-embed') {
+        window.setTimeout(() => {
+          if (scopeRef.current !== 'local') return;
+          if (loadedLocalRef.current.kind !== 'station') return;
+          if (loadedLocalRef.current.stationId !== station.id) return;
+          const status = getPlayerManager().getState().status;
+          if (status === 'playing' || status === 'loading') return; // next video came on
+          void reloadStationSource(station);
+        }, 2500);
+        return;
+      }
+
+      // A mapped song (or the station's own direct audio) ended: walk the
+      // programme from the current position, wrapping once, skipping rows
+      // with no playable source — then fall back to the station source.
+      const songs = programmeRef.current;
+      const currentIndex = programmeIndexFor(
+        songs,
+        currentSongRef.current,
+        loaded.kind === 'station' ? station.audioUrl ?? null : null,
+      );
+      if (songs.length > 0) {
+        for (let offset = 1; offset <= songs.length; offset += 1) {
+          const next = songs[(Math.max(currentIndex, -1) + offset + songs.length * 2) % songs.length];
+          if (next && (await playProgrammeSong(station, next))) return;
         }
       }
-      if (current) updateActiveRequest(null);
-
-      let items: SongRequest[] | null = null;
-      try {
-        items = await api.board({ tab: 'wanted' });
-      } catch {
-        items = null; // offline or API trouble → plain station behaviour, never a stall
-      }
-      const next = items ? pickNextRequest(items, skipRef.current, current?.id ?? null) : null;
-      if (next && (await playRequest(next))) return;
-      if (!fallsBackToStations(origin)) return; // the provider playlist manages itself
-      failuresRef.current = 0;
-      step(1);
+      await reloadStationSource(station);
     },
-    [playRequest, step, updateActiveRequest],
+    [selected, updateActiveRequest, playProgrammeSong, reloadStationSource],
+  );
+
+  /**
+   * Transport next/prev: walk THIS station's mapped programme. Stations on a
+   * provider playlist (or with nothing mapped) keep stepping between stations
+   * — the provider owns its own sequence.
+   */
+  const stepProgramme = useCallback(
+    async (direction: 1 | -1) => {
+      const station = selected;
+      const decision = station ? decideSource(station) : null;
+      if (!station || !decision || decision.kind !== 'play') {
+        if (activeRequestRef.current) updateActiveRequest(null);
+        stepRef.current(direction);
+        return;
+      }
+      const wasPreview =
+        loadedLocalRef.current.kind === 'preview' || Boolean(activeRequestRef.current);
+      if (activeRequestRef.current) updateActiveRequest(null);
+      const songs =
+        programmeRef.current.length > 0 ? programmeRef.current : bundledProgramme(station.id);
+      const base = programmeIndexFor(
+        songs,
+        wasPreview ? previewResumeRef.current : currentSongRef.current,
+        station.audioUrl ?? null,
+      );
+      previewResumeRef.current = null;
+      if (songs.length > 0) {
+        const target = songs[(base + direction + songs.length) % songs.length];
+        if (target && (await playProgrammeSong(station, target))) return;
+      }
+      await reloadStationSource(station);
+    },
+    [selected, updateActiveRequest, playProgrammeSong, reloadStationSource],
   );
 
   stepRef.current = step;
-  advanceRef.current = advanceProgram;
+  advanceRef.current = advanceLocal;
 
   /**
    * The channel owns the global player while this device is live: every new
@@ -581,8 +795,37 @@ export default function App() {
     api.load(track.station_slug ?? `channel:${track.category_slug}`, decision);
     api.seek(channelRef.current.elapsed);
     joinSeekRef.current = channelRef.current.elapsed;
-    if (wasPlaying) void api.play();
+    // Autoplay only continues what is already audible — unless a chip press
+    // explicitly asked for this channel to start (one gesture, one start).
+    if (wasPlaying || autoplayOnJoinRef.current) {
+      autoplayOnJoinRef.current = false;
+      void api.play().catch(() => undefined);
+    }
   }, [scope, channelTrack, notify, updateActiveRequest]);
+
+  // A chip asked for autoplay: the channel track plays through the effect
+  // above. When the channel cannot answer (unconfigured, offline, empty) the
+  // flagship starts locally instead — one gesture always starts audio, never
+  // a silent hero.
+  useEffect(() => {
+    if (!autoplayOnJoinRef.current) return;
+    if (scope !== 'channel') {
+      autoplayOnJoinRef.current = false;
+      return;
+    }
+    if (channel.track) return; // the effect above loads and plays it
+    const answered = channel.joined || channel.unavailable;
+    if (isSupabaseConfigured() && !answered) return; // still connecting
+    autoplayOnJoinRef.current = false;
+    const flagship = selected;
+    if (!flagship) return;
+    const decision = decideSource(flagship);
+    if (isPlayableDecision(decision)) {
+      void startStation(flagship);
+    } else {
+      notify('The live channel is not available right now — press Play to try again.');
+    }
+  }, [scope, channel.track, channel.joined, channel.unavailable, selected, startStation, notify]);
 
   // Join-seek is retried until the engine actually lands there (embeds spawn
   // their iframe asynchronously; a fresh audio element needs its metadata).
@@ -649,23 +892,38 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one-time restore
   }, []);
 
-  // A request whose source fails is skipped for this session — the next
-  // highest-voted one airs instead. Repeated failures end the queue cleanly.
+  // A local source that will not play: previews hand the air back to the
+  // station, mapped songs advance to the next — and three straight failures
+  // stop the loop honestly instead of churning. The live channel has its own
+  // one-attempt skip (above) and never runs through here.
   useEffect(() => {
-    if (!activeRequest || player.status !== 'error') return;
-    skipRef.current.add(activeRequest.id);
-    updateActiveRequest(null);
-    failuresRef.current += 1;
-    if (failuresRef.current >= 3) {
-      failuresRef.current = 0;
-      step(1);
+    if (scope === 'channel') return;
+    if (player.status !== 'error') {
+      localErrorSeenRef.current = null;
       return;
     }
-    void advanceProgram('error');
-  }, [activeRequest, player.status, advanceProgram, step, updateActiveRequest]);
+    if (!browserOnline) return; // offline is not a source's fault — never churn
+    const loaded = loadedLocalRef.current;
+    const seenKey = `${loaded.kind}:${loaded.stationId}:${currentSong?.id ?? ''}`;
+    if (localErrorSeenRef.current === seenKey) return;
+    localErrorSeenRef.current = seenKey;
 
+    if (loaded.kind === 'preview' || activeRequestRef.current) {
+      void advanceLocal('error'); // never aired → the request simply stays open
+      return;
+    }
+    localErrorsRef.current += 1;
+    if (localErrorsRef.current >= 3) {
+      localErrorsRef.current = 0;
+      notify('This station could not play — check your connection, then press Play to retry.');
+      return;
+    }
+    void advanceLocal('error');
+  }, [scope, browserOnline, player.status, currentSong, activeRequest, advanceLocal, notify]);
+
+  // Real audio coming back clears the local failure tally.
   useEffect(() => {
-    if (player.status === 'playing') failuresRef.current = 0;
+    if (player.status === 'playing') localErrorsRef.current = 0;
   }, [player.status]);
 
   /** ← → seek a track with real duration; otherwise they move between stations. */
@@ -685,6 +943,9 @@ export default function App() {
   const handleSelect = useCallback(
     (station: Station) => {
       setCategory(station.category);
+      // The picked station IS the one now on air: hero, pill and — crucially
+      // — the programme that auto-advances must all follow it.
+      setSelected(station);
       void startStation(station);
     },
     [startStation],
@@ -814,14 +1075,36 @@ export default function App() {
       ? decisionForBroadcastTrack(channel.track) !== null
       : Boolean(selected && isPlayableDecision(decideSource(selected)));
 
-  // The pill title: the channel's song while live; the preview or the
-  // provider-reported title while this device is tuned locally.
+  // The pill title: the channel's song while live; the preview, the mapped
+  // programme song or the provider-reported title while tuned locally.
   const pillTitle =
     scope === 'channel'
       ? (player.trackTitle ?? channel.track?.title ?? null)
       : activeRequest
         ? activeRequest.title
-        : player.trackTitle;
+        : currentSong?.title ?? player.trackTitle;
+
+  // The player queue: the channel's votes-ordered list while live; this
+  // station's own programme while tuned locally (direct-audio stations only —
+  // a provider playlist sequences itself and shows nothing to invent).
+  const localUpcoming =
+    scope === 'channel' || !selected || programme.length === 0
+      ? null
+      : decideSource(selected).kind !== 'play'
+        ? null
+        : programme
+            .filter(
+              (_, index) =>
+                index !==
+                programmeIndexFor(programme, currentSong, selected.audioUrl ?? null),
+            )
+            .map((song) => ({
+              key: song.id,
+              title: song.title,
+              subtitle: song.artist ?? 'Station programme',
+              artwork: song.artwork ?? null,
+              votes: null,
+            }));
 
   const playerState: PlayerState = !browserOnline
     ? 'offline'
@@ -864,6 +1147,25 @@ export default function App() {
             Opening the control room…
           </p>
         )}
+      </div>
+    );
+  }
+
+  // Live maintenance switch: `maintenance_mode` takes the public shell down
+  // the moment an admin flips it (site_settings hydrate + realtime), while
+  // the control room above stays reachable. Default false — this branch never
+  // renders until someone turns it on.
+  if (getSetting('maintenance_mode') === 'true') {
+    return (
+      <div className="shell grain maintenance" role="alert">
+        <main className="maintenance-card">
+          <p className="eyebrow">{getSetting('site_name')?.trim() || 'Nostalgia Radio'}</p>
+          <h1 className="hero-title">Back on air shortly.</h1>
+          <p className="hero-description">
+            The station is tuning up for the next set. Nothing has been lost — the programme
+            resumes as soon as the doors open.
+          </p>
+        </main>
       </div>
     );
   }
@@ -976,15 +1278,16 @@ export default function App() {
                 artwork: item.artwork ?? null,
                 votes: item.votes ?? null,
               }))
-            : null
+            : localUpcoming
+        }
+        upcomingLabel={
+          scope === 'channel' ? 'Up next on air · by votes' : 'Up next in this station'
         }
         onGoLive={scope === 'local' && channel.track ? goLive : null}
         onToggleExpand={() => setPlayerExpanded((value) => !value)}
         onToggleMinimize={() => setPlayerMinimized((value) => !value)}
-        onPrevious={() => stepRef.current(-1)}
-        onNext={() =>
-          activeRequestRef.current ? advanceRef.current('manual') : stepRef.current(1)
-        }
+        onPrevious={() => void stepProgramme(-1)}
+        onNext={() => void stepProgramme(1)}
         onTogglePlay={() => void togglePlay()}
         onVolume={player.setVolume}
         onToggleMute={player.toggleMute}

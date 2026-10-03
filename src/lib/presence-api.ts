@@ -1,13 +1,16 @@
 /**
  * Live presence — approximate active sessions, never a fabricated number.
  *
- * V1 runs a local channel: every open tab of this browser joins a
- * BroadcastChannel, heartbeats while open, and leaves on unload, so the count
- * is the real number of connected sessions this device knows about. A realtime
- * backend (e.g. Supabase Realtime) can implement the same `PresenceApi` later
- * for a global count — no keys live in this repo.
+ * Two transports implement one `PresenceApi`:
  *
- * Presence is decoration: it never gates rendering, first paint or playback.
+ *  - global: Supabase Realtime presence (supabase-presence-store.ts) counts
+ *    every connected visitor when the project is configured;
+ *  - local:  a BroadcastChannel tally of this browser's tabs — the fallback
+ *    when Supabase is unconfigured, unreachable or slow (see getPresence).
+ *
+ * Either way the count is a real transport's answer, never invented. No keys
+ * live in this repo, and presence is decoration: it never gates rendering,
+ * first paint or playback.
  */
 
 /** Approximate set of live sessions, derived from heartbeat timestamps. */
@@ -162,10 +165,124 @@ export function createLocalPresence(): PresenceApi {
   };
 }
 
+/** How long the global transport gets to answer before the local tally takes over. */
+const REMOTE_READY_MS = 3000;
+
+/**
+ * Prefer the global Supabase presence (every visitor counts); fall back to
+ * the local channel when Supabase is unconfigured, unreachable or slow to
+ * answer. Listeners hear one honest number whenever a transport speaks —
+ * and nothing at all while none does (the UI already renders `null`).
+ */
+function createPreferRemotePresence(): PresenceApi {
+  const listeners = new Set<(sessions: number) => void>();
+  let backend: PresenceApi | null = null;
+  let backendUnsub: (() => void) | null = null;
+  let reported: number | null = null;
+  let pending = false;
+  let closed = false;
+  let graceTimer = 0;
+
+  const clearGrace = (): void => {
+    if (graceTimer) {
+      window.clearTimeout(graceTimer);
+      graceTimer = 0;
+    }
+  };
+
+  const attach = (next: PresenceApi): void => {
+    if (closed) {
+      next.close();
+      return;
+    }
+    backend = next;
+    backendUnsub = next.subscribe((sessions) => {
+      reported = sessions;
+      for (const listener of [...listeners]) listener(sessions);
+    });
+  };
+
+  const swapToLocal = (): void => {
+    if (!listeners.size || closed) return;
+    const previous = backend;
+    const previousUnsub = backendUnsub;
+    backend = null;
+    backendUnsub = null;
+    reported = null;
+    previousUnsub?.();
+    previous?.close();
+    attach(createLocalPresence());
+  };
+
+  const attachLocalOrNothing = (): void => {
+    if (backend || closed || !listeners.size) return;
+    attach(createLocalPresence());
+  };
+
+  const tryRemote = (): void => {
+    if (pending || backend || closed || typeof window === 'undefined') return;
+    pending = true;
+    void import('./supabase-presence-store')
+      .then((module) => module.createBrowserPresence())
+      .then((remote) => {
+        pending = false;
+        if (closed || !listeners.size) {
+          remote?.close();
+          return;
+        }
+        if (!remote) {
+          attachLocalOrNothing(); // Supabase not configured → local tally
+          return;
+        }
+        attach(remote);
+        // A configured backend that never syncs (blocked websocket…) must not
+        // leave a permanently blank counter: the local channel takes over.
+        clearGrace();
+        graceTimer = window.setTimeout(() => {
+          graceTimer = 0;
+          if (reported === null) swapToLocal();
+        }, REMOTE_READY_MS);
+      })
+      .catch(() => {
+        pending = false;
+        attachLocalOrNothing();
+      });
+  };
+
+  const teardown = (): void => {
+    clearGrace();
+    backendUnsub?.();
+    backend?.close();
+    backend = null;
+    backendUnsub = null;
+    reported = null;
+  };
+
+  return {
+    subscribe(listener) {
+      listeners.add(listener);
+      tryRemote();
+      if (reported !== null) listener(reported);
+      return () => {
+        listeners.delete(listener);
+        if (listeners.size === 0) teardown();
+      };
+    },
+    close() {
+      closed = true;
+      listeners.clear();
+      teardown();
+    },
+  };
+}
+
 let shared: PresenceApi | null = null;
 
-/** App-wide presence channel — created on first use, never during SSR. */
+/**
+ * App-wide presence channel — created on first use, never during SSR.
+ * Global (Supabase realtime) when configured, this device's tabs otherwise.
+ */
 export function getPresence(): PresenceApi {
-  if (!shared) shared = createLocalPresence();
+  if (!shared) shared = createPreferRemotePresence();
   return shared;
 }

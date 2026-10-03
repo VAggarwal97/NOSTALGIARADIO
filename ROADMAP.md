@@ -56,7 +56,7 @@ D Live layer → E Signature radio UI → F Discovery → G Donation → H Platf
 | Synchronized live broadcast (shared clock → all listeners) | ✅ | server `started_at` + `broadcast_state`; join-seek; CAS auto-advance |
 | Votes-ordered queue on air (suggestions first, then rotation) | ✅ | migration 9 picks; client never fakes airtime |
 | Realtime player events (now playing → all) | ✅ | `TRACK_CHANGED` on `public.broadcasts` — state only; audio from source |
-| Live listener count (aggregated presence) | ◐ | honest local-tally only; Supabase presence next |
+| Live listener count (aggregated presence) | ✅ | Supabase realtime presence (`presence:listeners`) preferred with 3 s leave-grace; local BroadcastChannel fallback; never blocks paint |
 | Per-station listener counts | ⬜ | Batch D |
 | Listeners around the world (coarse geo) | ⬜ | Batch D |
 | "Listening with you" copy | ⬜ | Batch D |
@@ -96,7 +96,7 @@ D Live layer → E Signature radio UI → F Discovery → G Donation → H Platf
 
 | Feature | Status | Notes |
 |---|---|---|
-| Donate link in navbar | ◐ | placeholder `#` (CI warns) |
+| Donate link in navbar | ✅ | live `donation_url` setting; empty ⇒ disabled slot (never `#`), `#` fails validation |
 | Donation page (hero/tiers/custom/UPI) | ⬜ | Batch G — needs your payment details |
 | Payment provider integration + server-side verify | ⬜ | Batch G |
 | Donation wall / goal / transparency / receipts | ⬜ | Batch G (real numbers only) |
@@ -125,8 +125,9 @@ D Live layer → E Signature radio UI → F Discovery → G Donation → H Platf
 - **Batch A — Activation**: migration 6 applied + proven (submit/vote/count end-to-end via live probes), manual rows purged, admin route withdrawn → **re-mounted** → **rebuilt with no login** (owner directive: migration 8 open panel, supabase §9). ⏳ *Awaiting: commit → Vercel redeploy → two-browser acceptance test.*
 - **Batch B — Player persistence**: storage key, boot restore with Resume (no autoplay), honest idle/ready states.
 - **Batch C — Community signals**: Community Pick ✅ (pill/dock/expanded/wall + device-vote credit) → likes ✅ → reactions → dedications → shoutouts → momentum.
-- **Batch D — Live layer**: Supabase presence → per-station counts → listening-with-you → recap/stats → realtime now-playing.
+- **Batch D — Live layer**: Supabase presence ✅ (global `presence:listeners` + local fallback) → per-station counts → listening-with-you → recap/stats → realtime now-playing.
 - **Batch E — Signature UI**: tuner → sleep timer → night mode → favorites/history/mix → atmospheres/sound FX → deep links.
 - **Batch F — Discovery**: search expansion → era/mood/artist/about-this-song/archive (needs songs catalogue).
 - **Batch G — Donation**: page + tiers + UPI/provider + server-verified success (needs payment details).
-- **Batch H — Platform**: ~~catalogue/editors~~ → ~~roles+OTP~~ *(superseded: open panel, no auth)* → analytics → reports/moderation → PWA. *Catalogue + Settings screens shipped in the no-login rebuild (supabase §9); site-side catalogue fetch still deferred (§8).*
+- **Batch H — Platform**: ~~catalogue/editors~~ → ~~roles+OTP~~ *(superseded: open panel, no auth)* → analytics → reports/moderation → PWA. *Catalogue + Settings screens shipped in the no-login rebuild (supabase §9); site-side catalogue fetch shipped (supabase §12).*
+- **Batch I — Live catalogue & auto-play** (ISSUES.md resolution): runtime hydration of categories/stations/songs/settings over realtime (migration 10) → settings consumed live (title/meta/brand/donate/maintenance gate) → **station pick starts the music + programme auto-advances** → cascade-count delete confirms + category-delete block → self-hosted backdrops → 60 s demo audio → Supabase presence. ⏳ *Awaiting: commit → Vercel redeploy → two-browser wall acceptance.*

@@ -1,9 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { CATEGORIES } from '../data/categories';
-import { STATIONS } from '../data/stations';
 import { findStation, stationsForCategory } from '../lib/catalog';
+import { useLiveCatalogue } from '../hooks/useLiveCatalogue';
 import { heroMeta } from '../lib/hero';
-import type { CategoryId } from '../types/station';
+import type { Category, CategoryId } from '../types/station';
 
 interface StationGalleryProps {
   /** The category the hero currently speaks for. */
@@ -35,6 +34,8 @@ export function StationGallery({
   onExploreAll,
 }: StationGalleryProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
+  // Bundled chips first, the hydrated catalogue as soon as it answers.
+  const { stations, categories } = useLiveCatalogue();
 
   useEffect(() => {
     const el = viewportRef.current;
@@ -61,10 +62,13 @@ export function StationGallery({
 
     // Loop distance: the first cloned card sits exactly one copy down, so
     // wrapping the scroll position there is pixel-identical and seamless.
+    // The track always renders exactly two copies — measure that, not the
+    // (possibly hydrating) category list.
     const measure = () => {
       const track = el.firstElementChild;
       const first = track?.children[0] as HTMLElement | undefined;
-      const clone = track?.children[CATEGORIES.length] as HTMLElement | undefined;
+      const originals = track ? Math.floor(track.children.length / 2) : 0;
+      const clone = track?.children[originals] as HTMLElement | undefined;
       cycle = first && clone ? clone.offsetTop - first.offsetTop : 0;
       expected = el.scrollTop;
     };
@@ -139,7 +143,7 @@ export function StationGallery({
     };
   }, []);
 
-  const card = (category: (typeof CATEGORIES)[number], clone: boolean) => {
+  const card = (category: Category, clone: boolean) => {
     const flagship = findStation(category.flagship);
     const isActive = category.id === activeCategory;
     const count = stationsForCategory(category.id).length;
@@ -199,18 +203,18 @@ export function StationGallery({
       <div className="gallery-head">
         <div>
           <p className="gallery-eyebrow">Explore the radio</p>
-          <p className="gallery-count">{STATIONS.length} stations</p>
+          <p className="gallery-count">{stations.length} stations</p>
         </div>
         <button type="button" className="gallery-view-all" onClick={onExploreAll}>
-          View all {STATIONS.length} <span aria-hidden="true">→</span>
+          View all {stations.length} <span aria-hidden="true">→</span>
         </button>
       </div>
 
       <div className="station-fade">
         <div className="station-grid" ref={viewportRef} tabIndex={-1}>
           <div className="station-track">
-            {CATEGORIES.map((category) => card(category, false))}
-            {CATEGORIES.map((category) => card(category, true))}
+            {categories.map((category) => card(category, false))}
+            {categories.map((category) => card(category, true))}
           </div>
         </div>
       </div>
